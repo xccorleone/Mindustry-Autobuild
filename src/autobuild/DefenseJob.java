@@ -301,13 +301,14 @@ public class DefenseJob extends BuildJob{
     }
 
     /** whole-map data for the route model */
-    static class MapData{
-        int[] cost, targets, spawns;
-        boolean[] nearSolid;
-        final Seq<float[]> air = new Seq<>();
+    public static class MapData{
+        public int[] cost, targets, spawns;
+        public boolean[] nearSolid;
+        /** flying lines {x0, y0, x1, y1} */
+        public final Seq<float[]> air = new Seq<>();
     }
 
-    MapData mapData(){
+    public static MapData mapData(){
         MapData m = new MapData();
         int w = world.width(), h = world.height();
         Team enemy = state.rules.waveTeam;

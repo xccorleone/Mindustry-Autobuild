@@ -6,8 +6,8 @@ import java.util.*;
  * Modules the mod brings that need no blueprint file: both cost only copper and lead, so they can be
  * built on a fresh sector.
  * <ul>
- * <li>{@link #combustionPlant}: a belt into a row of 4 overflow gates with a combustion generator on
- *     each side of each gate (8 generators, 480 power/s for 4 coal/s);</li>
+ * <li>{@link #combustionPlant}: belts and overflow gates in turn (a gate fed by a gate passes nothing
+ *     on), a combustion generator on each side of each gate (8 generators, 480 power/s for 4 coal/s);</li>
  * <li>{@link #graphitePress}: one graphite press between an inlet and an outlet belt (the seed module
  *     that makes the first graphite).</li>
  * </ul>
@@ -19,13 +19,15 @@ public final class BuiltinModules{
 
     public static Blueprint combustionPlant(){
         List<Blueprint.Tile> t = new ArrayList<>();
-        t.add(new Blueprint.Tile("conveyor", 0, 1, 0, null));
-        for(int x = 1; x <= 4; x++){
-            t.add(new Blueprint.Tile("overflow-gate", x, 1, 0, null));
-            t.add(new Blueprint.Tile("combustion-generator", x, 0, 0, null));
-            t.add(new Blueprint.Tile("combustion-generator", x, 2, 0, null));
+        // belts between the gates: a gate fed by a gate can't pass items on to the next one
+        for(int i = 0; i < 4; i++){
+            int x = i * 2;
+            t.add(new Blueprint.Tile("conveyor", x, 1, 0, null));
+            t.add(new Blueprint.Tile("overflow-gate", x + 1, 1, 0, null));
+            t.add(new Blueprint.Tile("combustion-generator", x + 1, 0, 0, null));
+            t.add(new Blueprint.Tile("combustion-generator", x + 1, 2, 0, null));
         }
-        return new Blueprint(COMBUSTION, 5, 3, t);
+        return new Blueprint(COMBUSTION, 8, 3, t);
     }
 
     public static Blueprint graphitePress(){

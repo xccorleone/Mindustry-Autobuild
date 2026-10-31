@@ -58,11 +58,21 @@ final class LayoutChecks{
             BlockInfo b = cat.block(p.block);
             for(int x = p.x + b.lo(); x <= p.x + b.hi(); x++) for(int y = p.y + b.lo(); y <= p.y + b.hi(); y++) at.put(key(x, y), p);
         }
+        // an end bridge doesn't output toward the bridges linking into it
+        Map<Placement, Set<Long>> incoming = new HashMap<>();
+        for(Placement p : all){
+            if(!(p.config instanceof int[] d) || !cat.block(p.block).kind.contains("bridge")) continue;
+            Placement to = at.get(key(p.x + d[0], p.y + d[1]));
+            if(to == null) continue;
+            int sx = Integer.signum(-d[0]), sy = Integer.signum(-d[1]);
+            incoming.computeIfAbsent(to, k -> new HashSet<>()).add(key(to.x + sx, to.y + sy));
+        }
         int mixed = 0;
         for(Placement p : all){
             BlockInfo b = cat.block(p.block);
             int f = Reservation.behaviour(b.kind, p.config instanceof int[], b.liquid != null);
             for(int[] side : sides(p, b)){
+                if(incoming.getOrDefault(p, Set.of()).contains(key(side[0], side[1]))) continue;
                 Placement q = at.get(key(side[0], side[1]));
                 if(q == null || q.owner == p.owner) continue;
                 BlockInfo qb = cat.block(q.block);

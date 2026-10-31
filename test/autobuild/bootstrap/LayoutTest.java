@@ -105,7 +105,7 @@ final class LayoutTest{
             GridTerrain t = map(5);
             LayoutOptions o = options("conveyor");
             ModuleSpec st = ModuleAnalyzer.analyze(starter, cat, 5), gr = ModuleAnalyzer.analyze(graphite, cat, 5), mg = ModuleAnalyzer.analyze(glass, cat, 5);
-            BasePlan plan = layout("workshop", t, new SurveyService.Options(), o, goal(o, plant, st, gr, mg), true);
+            BasePlan plan = layout("workshop", t, new SurveyService.Options(), o, goal(o, plant, st, gr, mg), System.getenv("PRINT") != null);
             yes("workshop: metaglass", plan.forecast.toCore.getOrDefault("metaglass", 0.0) > 0.3);
             yes("workshop: graphite", plan.forecast.toCore.getOrDefault("graphite", 0.0) > 0.3);
         }

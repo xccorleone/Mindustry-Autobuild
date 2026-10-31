@@ -18,11 +18,12 @@ import static autobuild.bootstrap.domain.shared.Dir.*;
  * Lays the production plan out on the map, in this order:
  * <ol>
  * <li>modules, then power plants ({@link ModulePlacer});</li>
+ * <li>a corridor from every loaded outlet to the core;</li>
  * <li>supply lines - plants' first, then modules', then the core's, each group biggest first: a
  *     mining site per ore share ({@link MiningSiteSolver}) with a corridor to the inlet (the core);
- *     a second share's corridor joins the first one's belt from a side. A water line gets a pump
+ *     into an inlet a second share's corridor joins the first one's line from a side, into the core
+ *     every share has its own. A water line gets a pump
  *     site ({@link WaterSiteSolver});</li>
- * <li>a corridor from every loaded outlet to the core;</li>
  * <li>power nodes for everything using or making power ({@link PowerGridSolver});</li>
  * <li>the {@link Forecast} of what this layout makes.</li>
  * </ol>
@@ -31,6 +32,13 @@ import static autobuild.bootstrap.domain.shared.Dir.*;
  */
 public final class BasePlanner{
     private BasePlanner(){}
+
+    /** a port's lane as tile indices: only its own line may use them */
+    static Set<Integer> laneTiles(StampPort p, boolean inlet, int w){
+        Set<Integer> out = new HashSet<>();
+        for(int[] t : p.lane(inlet, 0, 0)) out.add(t[0] + t[1] * w);
+        return out;
+    }
 
     public static BasePlan plan(Terrain t, SurveyService.Report survey, ProductionPlan prod, LayoutOptions o){
         Catalog cat = o.cat;
@@ -61,7 +69,26 @@ public final class BasePlanner{
             plan.zones.add(z);
         }
 
-        // 2. supply lines
+        // 2. products to the core (short, and what the base is for: before the supply lines take the ground)
+        for(int m = 0; m < prod.instances.size(); m++){
+            Stamp s = plan.stamps[m];
+            if(s == null) continue;
+            for(int j = 0; j < s.outlets.size(); j++){
+                StampPort p = s.outlets.get(j);
+                if(p.port.rate <= 0) continue;
+                Corridor c = router.route(String.join("+", p.port.items), false, BasePlan.outletOwner(m, j), BasePlan.MODULE + m,
+                    CorridorRouter.from(p.x, p.y, p.dir), CorridorRouter.rect(core[0], core[1], core[2], core[3]),
+                    laneTiles(p, false, w));
+                if(c == null){
+                    plan.notes.add(s.spec.name + ": no line from its outlet to the core");
+                    continue;
+                }
+                plan.corridors.add(c);
+                plan.outletRouted[m][j] = true;
+            }
+        }
+
+        // 3. supply lines
         List<Integer> order = new ArrayList<>();
         for(int i = 0; i < prod.lines.size(); i++) order.add(i);
         order.sort(Comparator.comparingInt((Integer i) -> {
@@ -88,8 +115,7 @@ public final class BasePlanner{
                 destY = p.y;
                 dir = p.dir;
                 goal = CorridorRouter.into(p.x + DX[p.dir], p.y + DY[p.dir], p.dir);
-                allowed.add(p.x + p.y * w);
-                allowed.add(p.approachX(true) + p.approachY(true) * w);
+                allowed.addAll(laneTiles(p, true, w));
                 exempt = BasePlan.MODULE + l.instance;
             }
             if(l.liquid){
@@ -101,6 +127,7 @@ public final class BasePlanner{
                     continue;
                 }
                 r.zone.line = i;
+                r.zone.corridor = r.corridor;
                 plan.zones.add(r.zone);
                 plan.corridors.add(r.corridor);
                 plan.lineSupply[i] = r.rate;
@@ -108,13 +135,16 @@ public final class BasePlanner{
             }
             Corridor main = null;
             for(SupplyLine.Share sh : l.sources){
-                MiningSite site = MiningSiteSolver.solve(t, res, o, sh.patch, sh.rate, destX, destY, i);
+                MiningSite site = MiningSiteSolver.solve(t, res, o, sh.patch, sh.rate, destX, destY, i, l.toCore());
                 if(!site.ok()){
                     plan.notes.add(name + ": " + sh.patch + ": " + site.error);
                     continue;
                 }
-                Corridor c = router.route(l.item, false, i, main == null ? exempt : i, CorridorRouter.from(site.sinkX, site.sinkY, site.sinkDir),
-                    main == null ? goal : CorridorRouter.join(main), main == null ? allowed : Set.of());
+                // into a module inlet a second source joins the first one's line; the core takes from every
+                // side, so each source gets its own line there (joining a nearly full belt loses items)
+                boolean join = main != null && !l.toCore();
+                Corridor c = router.route(l.item, false, i, join ? i : exempt, CorridorRouter.from(site.sinkX, site.sinkY, site.sinkDir),
+                    join ? CorridorRouter.join(main) : goal, join ? Set.of() : allowed);
                 if(c == null){
                     for(Placement p : site.placements) res.release(p, cat.block(p.block));
                     plan.notes.add(name + ": no line from " + sh.patch);
@@ -123,30 +153,12 @@ public final class BasePlanner{
                 if(main == null) main = c;
                 Zone z = new Zone(Zone.Kind.MINING, l.item);
                 z.line = i;
+                z.corridor = c;
                 z.rate = site.rate;
                 z.placements.addAll(site.placements);
                 plan.zones.add(z);
                 plan.corridors.add(c);
                 plan.lineSupply[i] += site.rate;
-            }
-        }
-
-        // 3. products to the core
-        for(int m = 0; m < prod.instances.size(); m++){
-            Stamp s = plan.stamps[m];
-            if(s == null) continue;
-            for(int j = 0; j < s.outlets.size(); j++){
-                StampPort p = s.outlets.get(j);
-                if(p.port.rate <= 0) continue;
-                Corridor c = router.route(String.join("+", p.port.items), false, BasePlan.outletOwner(m, j), BasePlan.MODULE + m,
-                    CorridorRouter.from(p.x, p.y, p.dir), CorridorRouter.rect(core[0], core[1], core[2], core[3]),
-                    Set.of(p.x + p.y * w, p.approachX(false) + p.approachY(false) * w));
-                if(c == null){
-                    plan.notes.add(s.spec.name + ": no line from its outlet to the core");
-                    continue;
-                }
-                plan.corridors.add(c);
-                plan.outletRouted[m][j] = true;
             }
         }
 

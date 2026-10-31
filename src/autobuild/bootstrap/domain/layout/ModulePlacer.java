@@ -12,8 +12,9 @@ import java.util.*;
 /**
  * Where the modules and power plants stand: one instance after the other (modules, then plants),
  * every turn and every position on the map. A position is possible when the footprint is free and
- * on nobody's ring, the ring around it holds nothing planned (and no other module's attach tile), and
- * every edge port's attach tile is free and on no other ring. Among those the cheapest wins:
+ * on nobody's ring, the ring around it holds nothing planned (and no other module's port lane), and
+ * every port's lane (attach tile and the tile straight out) is free and on no other ring or lane.
+ * Among those the cheapest wins:
  * <pre>
  *   sum over inlets  (rate x line cost from its source patch / water body to the attach tile)
  * + sum over outlets (rate x line cost from the attach tile to the core)
@@ -127,24 +128,30 @@ public final class ModulePlacer{
     }
 
     /**
-     * The port's attach tile (edge ports) and the tile before it are free and on no ring. A marker's
-     * attach tile is its own; the tile before it is on the module's own ring, so only free and on
-     * nobody else's ring.
+     * The port's lane ({@link StampPort#lane}) is free, on no ring and no other port's lane. A marker's
+     * attach tile is inside the module (its own) and is not checked.
      */
     boolean portFree(StampPort p, boolean inlet, int ox, int oy){
-        int ax = p.x + ox, ay = p.y + oy, bx = p.approachX(inlet) + ox, by = p.approachY(inlet) + oy;
-        if(!p.port.marker && (!res.free(ax, ay) || res.ring(ax, ay))) return false;
-        return res.free(bx, by) && !res.ring(bx, by) && !attach[bx + by * res.w];
+        int[][] lane = p.lane(inlet, ox, oy);
+        for(int k = p.port.marker ? 1 : 0; k < lane.length; k++){
+            int x = lane[k][0], y = lane[k][1];
+            if(!res.free(x, y) || res.ring(x, y) || attach[x + y * res.w]) return false;
+        }
+        return true;
     }
 
-    /** later modules keep their footprints and rings off a port's attach tile and the tile before it */
+    /** later modules keep their footprints and rings off a port's lane and mouth; lines other than its own off the lane */
     void keep(StampPort p, boolean inlet){
-        int w = res.w;
-        attach[p.x + p.y * w] = true;
-        int bx = p.approachX(inlet), by = p.approachY(inlet);
-        if(res.in(bx, by)) attach[bx + by * w] = true;
-        res.keep(p.x, p.y);
-        res.keep(bx, by);
+        for(int[] t : p.lane(inlet, 0, 0)){
+            if(!res.in(t[0], t[1])) continue;
+            attach[t[0] + t[1] * res.w] = true;
+            res.keep(t[0], t[1]);
+        }
+        for(int[] m : p.mouth(inlet, 0, 0)){
+            if(!res.free(m[0], m[1])) break;
+            attach[m[0] + m[1] * res.w] = true;
+            res.markMouth(m[0], m[1]);
+        }
     }
 
     static void put(int[] ps, int w, int x, int y, int v){

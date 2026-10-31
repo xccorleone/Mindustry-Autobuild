@@ -16,7 +16,8 @@ import static autobuild.bootstrap.domain.shared.Dir.*;
  * <li>a block taking items must not stand next to another network's pusher ({@link #itemSafe});</li>
  * <li>a pusher must not stand next to another network's taker ({@link #pushSafe});</li>
  * <li>the same for liquids;</li>
- * <li>the core takes anything from anyone: it never counts as another network.</li>
+ * <li>the core takes anything from anyone: it never mixes, but only lines to the core may push into
+ *     it (a module's sand site next to the core would hand its sand to the core instead).</li>
  * </ul>
  * Ring tiles around a module (crafters push into anything there) take no logistics, only power nodes
  * and the module's own attach tiles. A port's attach tile and the tile before it are kept for that
@@ -35,6 +36,8 @@ public final class Reservation{
     final int[] ring;
     /** a port's attach tile or the tile before it: only that port's line may use it */
     final boolean[] kept;
+    /** the tile past a port's lane: other lines avoid it */
+    final boolean[] mouth;
 
     public Reservation(int w, int h, boolean[] usable){
         this.w = w;
@@ -44,6 +47,7 @@ public final class Reservation{
         flags = new byte[w * h];
         ring = new int[w * h];
         kept = new boolean[w * h];
+        mouth = new boolean[w * h];
         Arrays.fill(owner, FREE);
         Arrays.fill(ring, FREE);
     }
@@ -115,6 +119,12 @@ public final class Reservation{
 
     public boolean kept(int x, int y){ return in(x, y) && kept[x + y * w]; }
 
+    public void markMouth(int x, int y){
+        if(in(x, y)) mouth[x + y * w] = true;
+    }
+
+    public boolean mouth(int x, int y){ return in(x, y) && mouth[x + y * w]; }
+
     /** a kept tile next to (x, y) that is not in `own` (tile indices): a pusher here would feed another port's line */
     public boolean nearKept(int x, int y, Set<Integer> own){
         for(int d = 0; d < 4; d++){
@@ -169,6 +179,15 @@ public final class Reservation{
             if(foreign(i, net, exempt) && (flags[i] & flag) != 0) return false;
         }
         return true;
+    }
+
+    /** a footprint (min corner, size) touches the core from a side */
+    public boolean touchesCore(int x0, int y0, int size){
+        for(int i = -1; i <= size; i++) for(int j = -1; j <= size; j++){
+            boolean edge = (i == -1 || i == size) != (j == -1 || j == size);
+            if(edge && in(x0 + i, y0 + j) && owner[x0 + i + (y0 + j) * w] == CORE) return true;
+        }
+        return false;
     }
 
     /** a footprint (min corner, size) of a block of `net` pushing items: every tile around it safe */

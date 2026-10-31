@@ -8,6 +8,8 @@ import autobuild.bootstrap.domain.shared.Placement;
 
 import java.util.*;
 
+import static autobuild.bootstrap.domain.shared.Dir.*;
+
 /**
  * A module's blueprint turned by {@code rot} quarter turns counter-clockwise and moved so that its
  * footprint's lower left corner is (ox, oy). A block's centre is recomputed from its turned
@@ -31,11 +33,32 @@ public final class Stamp{
             this.dir = dir;
         }
 
-        /** the tile the line comes from (inlet) or goes on to (outlet): one step outside the attach tile */
-        public int approachX(boolean inlet){ return x + (inlet ? -1 : 1) * autobuild.bootstrap.domain.shared.Dir.DX[dir]; }
+        /**
+         * The attach tile and the {@link #LANE} tiles straight out from it (where an inlet's line comes
+         * from, an outlet's goes on to), moved by (ox, oy): kept for this port's line, so that lines of
+         * ports side by side can reach them straight.
+         */
+        public int[][] lane(boolean inlet, int ox, int oy){
+            int[][] out = new int[LANE + 1][];
+            for(int k = 0; k <= LANE; k++) out[k] = out(inlet, k, ox, oy);
+            return out;
+        }
 
-        public int approachY(boolean inlet){ return y + (inlet ? -1 : 1) * autobuild.bootstrap.domain.shared.Dir.DY[dir]; }
+        /** the {@link #MOUTH} tiles just past the lane: other lines avoid them (a line there would seal the lane) */
+        public int[][] mouth(boolean inlet, int ox, int oy){
+            int[][] out = new int[MOUTH][];
+            for(int k = 0; k < MOUTH; k++) out[k] = out(inlet, LANE + 1 + k, ox, oy);
+            return out;
+        }
+
+        int[] out(boolean inlet, int k, int ox, int oy){
+            int s = inlet ? -1 : 1;
+            return new int[]{x + ox + s * k * DX[dir], y + oy + s * k * DY[dir]};
+        }
     }
+
+    /** tiles kept straight out from each port's attach tile */
+    public static final int LANE = 1, MOUTH = 1;
 
     public final ModuleSpec spec;
     public final int rot, w, h, x0, y0;

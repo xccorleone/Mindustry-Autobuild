@@ -17,6 +17,8 @@ public final class Zone{
     /** mining / water zones: the supply line they feed (index into the production plan's lines) and its rate */
     public int line = -1;
     public double rate;
+    /** mining / water zones: their corridor */
+    public Corridor corridor;
 
     Zone(Kind kind, String label){
         this.kind = kind;

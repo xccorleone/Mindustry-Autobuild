@@ -16,7 +16,8 @@ import java.util.*;
  * <ol>
  * <li><b>Crop</b>: the patch's free tiles nearest the line's destination, until they give the share
  *     with a margin ({@link #MARGIN}) at the plan's coverage; their bounding box plus
- *     {@link #BORDER} tiles is the planner's region (the rest of the patch stays for other lines).
+ *     {@link #BORDER} tiles (fewer if nothing outside is free) is the planner's region (the rest of the
+ *     patch stays for other lines).
  *     A site falling short is planned again on twice the tiles (at most {@link #GROW} times); the
  *     best one is kept.</li>
  * <li><b>Sink</b>: a free tile just outside the side of the region facing the destination, as close
@@ -32,7 +33,8 @@ public final class MiningSiteSolver{
 
     private MiningSiteSolver(){}
 
-    public static MiningSite solve(Terrain t, Reservation res, LayoutOptions o, OrePatch patch, double need, int destX, int destY, int owner){
+    /** @param toCore the line ends in the core (else its drills must not touch the core: they would feed it) */
+    public static MiningSite solve(Terrain t, Reservation res, LayoutOptions o, OrePatch patch, double need, int destX, int destY, int owner, boolean toCore){
         Catalog cat = o.cat;
         BlockInfo drill = o.drillFor(patch.item);
         double perTile = o.perTile(patch.item);
@@ -50,7 +52,7 @@ public final class MiningSiteSolver{
         double margin = MARGIN;
         for(int attempt = 0; attempt < GROW; attempt++, margin *= 2){
             int take = (int)Math.min(tiles.size(), Math.max(MIN_TILES, Math.ceil(need * margin / (o.coverage * perTile))));
-            MiningSite s = site(t, res, o, drill, perTile, patch.item, tiles, take, destX, destY, owner);
+            MiningSite s = site(t, res, o, drill, perTile, patch.item, tiles, take, destX, destY, owner, toCore);
             if(best == null || s.ok() && (!best.ok() || s.rate > best.rate)){
                 if(best != null && best.ok()) release(res, o, best);
                 best = s;
@@ -66,7 +68,7 @@ public final class MiningSiteSolver{
 
     /** a site on the first `take` tiles: their bounding box plus the border, the side facing the destination first */
     static MiningSite site(Terrain t, Reservation res, LayoutOptions o, BlockInfo drill, double perTile, String item, List<Integer> tiles, int take,
-                           int destX, int destY, int owner){
+                           int destX, int destY, int owner, boolean toCore){
         int w = res.w;
         int x0 = Integer.MAX_VALUE, y0 = Integer.MAX_VALUE, x1 = -1, y1 = -1;
         for(int k = 0; k < take; k++){
@@ -76,12 +78,15 @@ public final class MiningSiteSolver{
             x1 = Math.max(x1, i % w);
             y1 = Math.max(y1, i / w);
         }
-        int[] region = {Math.max(0, x0 - BORDER), Math.max(0, y0 - BORDER), Math.min(w - 1, x1 + BORDER), Math.min(res.h - 1, y1 + BORDER)};
         MiningSite best = null;
-        for(int side : sides(region, destX, destY)){
-            MiningSite s = plan(t, res, o, drill, perTile, item, region, side, destX, destY, owner);
-            if(s.ok()) return s;
-            if(best == null) best = s;
+        // a narrower border when nothing outside the wider one is free for the output (walled-in patches)
+        for(int border = BORDER; border >= 0; border--){
+            int[] region = {Math.max(0, x0 - border), Math.max(0, y0 - border), Math.min(w - 1, x1 + border), Math.min(res.h - 1, y1 + border)};
+            for(int side : sides(region, destX, destY)){
+                MiningSite s = plan(t, res, o, drill, perTile, item, region, side, destX, destY, owner, toCore);
+                if(s.ok()) return s;
+                if(best == null) best = s;
+            }
         }
         return best;
     }
@@ -95,7 +100,7 @@ public final class MiningSiteSolver{
     }
 
     static MiningSite plan(Terrain t, Reservation res, LayoutOptions o, BlockInfo drill, double perTile, String item, int[] region, int side,
-                           int destX, int destY, int owner){
+                           int destX, int destY, int owner, boolean toCore){
         MiningSite site = new MiningSite(item, region);
         Frame f = new Frame(region[0], region[1], region[2], region[3], side);
         int W = f.W, H = f.H, s = drill.size;
@@ -131,12 +136,15 @@ public final class MiningSiteSolver{
         for(int x = region[0]; x <= region[2]; x++) for(int y = region[1]; y <= region[3]; y++){
             boolean ok = x + s - 1 <= region[2] && y + s - 1 <= region[3] && res.footprintPushSafe(x, y, s, owner);
             for(int i = 0; i < s && ok; i++) for(int j = 0; j < s && ok; j++) ok = res.free(x + i, y + j) && !res.ring(x + i, y + j) && !res.kept(x + i, y + j);
-            ok &= !nearKeptFootprint(res, x, y, s);
+            ok &= !nearKeptFootprint(res, x, y, s) && (toCore || !res.touchesCore(x, y, s));
             minOk[x - region[0]][y - region[1]] = ok;
         }
         for(int u = 0; u < W; u++) for(int v = 0; v < H; v++){
             int x = f.wx(u, v), y = f.wy(u, v);
-            p.beltOk[u][v] = res.free(x, y) && !res.ring(x, y) && !res.kept(x, y) && res.itemSafe(x, y, owner);
+            // on the region's edge the planner can't see what's outside: an end bridge there must not touch another network
+            boolean edge = x == region[0] || y == region[1] || x == region[2] || y == region[3];
+            p.beltOk[u][v] = res.free(x, y) && !res.ring(x, y) && !res.kept(x, y) && res.itemSafe(x, y, owner)
+                && (!edge || res.pushSafe(x, y, owner, Reservation.FREE) && (toCore || !res.touchesCore(x, y, 1)));
             String ore = t.ore(x, y);
             Catalog.ItemInfo it = ore == null ? null : cat.item(ore);
             p.drop[u][v] = it != null && drill.tier >= it.hardness && drill.drillTime.containsKey(ore) ? it.id : -1;
@@ -179,11 +187,11 @@ public final class MiningSiteSolver{
         return site;
     }
 
-    /** a drill (pusher) here would stand next to a port's kept tile */
+    /** a drill (pusher) here would stand next to a port's lane or its mouth */
     static boolean nearKeptFootprint(Reservation res, int x0, int y0, int s){
         for(int i = -1; i <= s; i++) for(int j = -1; j <= s; j++){
             boolean edge = (i == -1 || i == s) != (j == -1 || j == s);
-            if(edge && res.kept(x0 + i, y0 + j)) return true;
+            if(edge && (res.kept(x0 + i, y0 + j) || res.mouth(x0 + i, y0 + j))) return true;
         }
         return false;
     }

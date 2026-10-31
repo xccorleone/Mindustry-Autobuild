@@ -47,7 +47,7 @@ final class StampTest{
         near("plant power", 480, plant.powerGen);
         near("plant coal", 4, plant.inlets.get(0).rate);
         yes("plant needs a node", !plant.hasNode);
-        eq("plant cost", "copper:217,lead:128", plant.cost.toString());
+        eq("plant cost", "copper:220,lead:128", plant.cost.toString());
 
         ModuleSpec press = ModuleAnalyzer.analyze(BuiltinModules.graphitePress(), cat, 10);
         eq("press ok", null, press.error);

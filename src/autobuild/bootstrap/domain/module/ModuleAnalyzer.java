@@ -18,6 +18,7 @@ import static autobuild.bootstrap.domain.shared.Dir.*;
  * <li><b>Flow</b>: an item put into a port moves through the blueprint by the game's push rules -
  *     conveyors push forward and refuse items from their front, junctions pass straight, sorters pass
  *     their item forward and others to the sides (inverted: the reverse), gates and routers spread,
+ *     a sorter / gate fed by a sorter / gate passes nothing to a third one (instant transfer),
  *     a linked bridge sends to its link and refuses items from the link side, an end bridge takes
  *     items only over a link and dumps to every side but its incoming bridges; routers, crafters and
  *     source markers push from their whole footprint - until a crafter or generator consumes the item
@@ -71,6 +72,8 @@ public final class ModuleAnalyzer{
     final int[][] grid;
     final List<Integer> consumerParts = new ArrayList<>();
     final List<Port> inlets = new ArrayList<>(), outlets = new ArrayList<>();
+    /** flow: the block being drained got its item from a sorter / gate */
+    boolean fedByInstant;
 
     ModuleAnalyzer(Blueprint bp, Catalog cat, double defaultCap){
         this.bp = bp;
@@ -227,7 +230,8 @@ public final class ModuleAnalyzer{
     Reach flowFromPort(Port port, String item){
         Reach reach = new Reach();
         Deque<int[]> queue = new ArrayDeque<>();
-        boolean[] seen = new boolean[parts.size() * 8];
+        boolean[] seen = new boolean[parts.size() * 16];
+        fedByInstant = false;
         if(port.marker) pushAround(parts.get(grid[port.x][port.y]), item, port.liquid, reach, queue, seen); // sources feed every side
         else push(port.x, port.y, port.x + DX[port.dir], port.y + DY[port.dir], port.dir, item, port.liquid, false, reach, queue, seen);
         drain(item, port.liquid, reach, queue, seen);
@@ -237,7 +241,8 @@ public final class ModuleAnalyzer{
     Reach flowFromCrafter(Part c, String item){
         Reach reach = new Reach();
         Deque<int[]> queue = new ArrayDeque<>();
-        boolean[] seen = new boolean[parts.size() * 8];
+        boolean[] seen = new boolean[parts.size() * 16];
+        fedByInstant = false;
         pushAround(c, item, false, reach, queue, seen);
         drain(item, false, reach, queue, seen);
         return reach;
@@ -275,11 +280,18 @@ public final class ModuleAnalyzer{
             reach.consumers.set(pi);
             return;
         }
-        int key = pi * 8 + travel + (viaBridge ? 4 : 0);
+        // the game's instant transfer: a sorter / gate fed by a sorter / gate doesn't hand items to a third
+        Part from = in(fx, fy) && grid[fx][fy] >= 0 ? parts.get(grid[fx][fy]) : null;
+        boolean fromInstant = from != null && instant(from);
+        if(fromInstant && fedByInstant && instant(q)) return;
+        int key = pi * 16 + travel + (viaBridge ? 4 : 0) + (fromInstant ? 8 : 0);
         if(seen[key]) return;
         seen[key] = true;
-        queue.add(new int[]{pi, travel, viaBridge ? 1 : 0});
+        queue.add(new int[]{pi, travel, viaBridge ? 1 : 0, fromInstant ? 1 : 0});
     }
+
+    /** sorters and overflow gates pass items on in the same frame (the game's instantTransfer) */
+    static boolean instant(Part p){ return p.kind().equals("sorter") || p.kind().equals("gate"); }
 
     int outletAt(int x, int y, int travel, boolean marker){
         for(int i = 0; i < outlets.size(); i++){
@@ -293,6 +305,7 @@ public final class ModuleAnalyzer{
         while(!queue.isEmpty()){
             int[] s = queue.poll();
             Part p = parts.get(s[0]);
+            fedByInstant = s[3] == 1;
             int d = s[1], x = p.t.x, y = p.t.y;
             switch(p.kind()){
                 case "conveyor", "conduit" -> {

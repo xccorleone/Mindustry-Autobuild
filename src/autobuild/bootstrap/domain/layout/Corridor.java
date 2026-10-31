@@ -10,8 +10,10 @@ public final class Corridor{
     public final boolean liquid;
     public final int owner;
     public final List<Placement> placements = new ArrayList<>();
-    /** plain belts {x, y, dir}: where another line of the same item may join from a side */
+    /** plain belts {x, y, dir}: another line of the same item may join from a side */
     public final List<int[]> pipes = new ArrayList<>();
+    /** linked bridges {x, y, link dir}: another line may join from any side but the link's */
+    public final List<int[]> bridges = new ArrayList<>();
     /** route cost (tiles, bridges count extra) */
     public double cost;
 

@@ -10,7 +10,8 @@ import java.util.*;
  * What the base as laid out will make, from what was actually built rather than what the production
  * plan hoped for:
  * <ol>
- * <li>a line gets what its built sources deliver, at most one belt (liquids: no limit);</li>
+ * <li>a line gets what its built sources deliver, at most one belt (liquids: no limit; core lines:
+ *     one belt per source);</li>
  * <li>an instance runs at its scarcest item's supply share (as {@link ChainSolver} counts it), not at
  *     all without room or with an outlet that reaches nowhere (it would clog), and at most as fast as
  *     each outlet's belt carries;</li>
@@ -36,7 +37,8 @@ public final class Forecast{
         double belt = o.beltSpeed();
         for(int i = 0; i < prod.lines.size(); i++){
             SupplyLine l = prod.lines.get(i);
-            f.line[i] = l.liquid ? plan.lineSupply[i] : Math.min(belt, plan.lineSupply[i]);
+            // a core line's sources each have their own belt (each at most one belt already)
+            f.line[i] = l.liquid || l.toCore() ? plan.lineSupply[i] : Math.min(belt, plan.lineSupply[i]);
         }
         for(int m = 0; m < prod.instances.size(); m++){
             ModuleSpec spec = prod.instances.get(m).spec;

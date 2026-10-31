@@ -571,5 +571,6 @@ public class AutoBuildMod extends Mod{
     public void registerServerCommands(CommandHandler handler){
         ServerTest.register(handler);
         ServerDefenseTest.register(handler);
+        ServerBootstrapTest.register(handler);
     }
 }
