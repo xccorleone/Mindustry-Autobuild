@@ -8,6 +8,12 @@ public final class StageOptions{
     public final Map<String, Double> weights = new TreeMap<>(Map.of(
         "titanium", 2.0, "graphite", 2.0, "metaglass", 2.5, "silicon", 3.0));
     public double defaultWeight = 1;
+    /**
+     * Products made first: while a step of a module making one (or of its lines) is left, other
+     * modules and power plants come only when nothing of these can be paid for. Graphite: silicon
+     * early ties up coal and power while the drills and kilns wait for graphite.
+     */
+    public final Set<String> first = new TreeSet<>(Set.of("graphite"));
     /** seconds: candidates affordable within this are preferred */
     public double horizon = 600;
     /** most of one item the core holds */

@@ -15,9 +15,11 @@ import java.util.*;
  * <li>Module copies; power plants added until they cover what the modules use beyond their own
  *     generation (peak use).</li>
  * <li>A supply line per module inlet (at most one outside belt's worth) and per raw line to the core.</li>
- * <li>Allocation - power plants' lines first (nothing runs without power), then modules', then the
- *     core's, biggest first: nearest ore patches (water bodies) with capacity left; a patch gives
- *     tiles x coverage x the best allowed drill's rate, a water body tiles x pump rate.</li>
+ * <li>Allocation - the lines of modules making a {@link ProductionGoal#first first} product (graphite:
+ *     everything else waits for it), then power plants' (nothing else runs without power), then the
+ *     core's (it pays for everything), then other modules', biggest first: nearest ore patches (water bodies) with capacity
+ *     left; a patch gives tiles x coverage x the best allowed drill's rate, a water body tiles x pump
+ *     rate. A far ore patch is used only for enough ore to be worth its line ({@link ProductionGoal#fetch}).</li>
  * <li>A module runs at its scarcest item's share of what its inlets for that item take together -
  *     short of ore, or held to one belt per inlet - so its other lines need less: every line's target
  *     is scaled to it and everything is allocated again (once: ore this frees is not offered back to
@@ -36,12 +38,14 @@ public final class ChainSolver{
         for(ProductionGoal.ModuleOrder o : goal.modules) if(!o.spec.ok()) throw new IllegalArgumentException(o.spec.name + ": " + o.spec.error);
         if(goal.power != null && !goal.power.ok()) throw new IllegalArgumentException(goal.power.name + ": " + goal.power.error);
         ProductionPlan plan = new ProductionPlan();
+        plan.fetch = goal.fetch;
         double use = 0, own = 0;
         for(ProductionGoal.ModuleOrder o : goal.modules){
             for(int i = 0; i < o.count; i++) plan.instances.add(new Instance(o.spec, false));
             use += o.spec.powerUse * o.count;
             own += o.spec.powerGen * o.count;
         }
+        for(Instance in : plan.instances) in.first = goal.first(in.spec);
         plan.powerDemand = Math.max(0, use - own);
         if(plan.powerDemand > 0){
             if(goal.power == null || goal.power.powerGen <= 0){
@@ -106,6 +110,21 @@ public final class ChainSolver{
         return best;
     }
 
+    /**
+     * First-product modules, power plants (nothing else runs without power; near fuel keeps them near
+     * the modules, in reach of one grid), the core (it pays for everything), other modules.
+     */
+    static int rank(ProductionPlan plan, SupplyLine l){
+        if(l.toCore()) return 2;
+        Instance in = plan.instances.get(l.instance);
+        return in.first ? 0 : in.power ? 1 : 3;
+    }
+
+    /** a line `distance` long from the core for `rate` per second: enough to be worth the way */
+    static boolean worth(ProductionGoal goal, int distance, double rate){
+        return rate >= distance * goal.fetch - 1e-9;
+    }
+
     static void allocate(ProductionPlan plan, ProductionGoal goal, SurveyService.Report survey, Catalog cat){
         Map<Object, Double> left = new HashMap<>();
         for(OrePatch p : survey.patches) left.put(p, p.size() * goal.coverage * perTile(p.item, goal, cat));
@@ -113,8 +132,7 @@ public final class ChainSolver{
         for(WaterBody b : survey.waters) left.put(b, b.size() * pumpRate);
 
         List<SupplyLine> order = new ArrayList<>(plan.lines);
-        order.sort(Comparator.comparingInt((SupplyLine l) -> l.toCore() ? 2 : plan.instances.get(l.instance).power ? 0 : 1)
-            .thenComparingDouble(l -> -l.target));
+        order.sort(Comparator.comparingInt((SupplyLine l) -> rank(plan, l)).thenComparingDouble(l -> -l.target));
         for(SupplyLine l : order){
             l.sources.clear();
             l.supplied = 0;
@@ -125,7 +143,7 @@ public final class ChainSolver{
                 double need = l.target - l.supplied;
                 if(need <= 1e-9) break;
                 double take = Math.min(need, left.get(c));
-                if(take <= 1e-9) continue;
+                if(take <= 1e-9 || c instanceof OrePatch p && !worth(goal, p.distance, take)) continue;
                 left.merge(c, -take, Double::sum);
                 l.supplied += take;
                 l.sources.add(new SupplyLine.Share(c instanceof OrePatch p ? p : null, c instanceof WaterBody b ? b : null, take));

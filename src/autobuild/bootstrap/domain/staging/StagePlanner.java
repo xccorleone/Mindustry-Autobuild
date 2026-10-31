@@ -13,7 +13,10 @@ import java.util.*;
  * it costs (both in {@link StageOptions#weight weighted} items). A candidate is a step with what it
  * needs to earn anything ({@link #closure}). Of the candidates the core can pay for - from its stock
  * and the income of what already stands - within the horizon, the best payback wins; past the
- * horizon, the one paid for soonest; steps earning nothing come last, cheapest first.
+ * horizon, the one paid for soonest; steps earning nothing come last, cheapest first. While steps of
+ * modules making a {@link StageOptions#first first} product are left, candidates building another
+ * module or a plant rank behind all others; behind everything rank candidates that would leave the
+ * core unable to pay for the line bringing in an item it barely gets ({@link #strands}).
  * <p>
  * A step whose planned blocks have stand-ins ({@link Step#standIns}) is built with them when an item
  * only the planned blocks need (titanium, graphite) is neither in the core nor coming in; its
@@ -40,6 +43,12 @@ public final class StagePlanner{
         public final Bom cost = new Bom();
         /** value per second earned more; weighted cost; seconds until the core holds the cost */
         public double gain, price, wait;
+        /** builds another module or plant while first-product steps are left */
+        boolean late;
+        /** leaves too little to pay for the line bringing in an item the core barely gets ({@link #strands}) */
+        boolean strands;
+        /** what stands once it is built */
+        Forecast end;
         int tier;
         double key;
     }
@@ -163,6 +172,11 @@ public final class StagePlanner{
     static List<Choice> candidates(StepGraph g, StageState s, StageOptions o, Set<String> missing){
         Forecast now = forecast(g, s.status);
         double base = value(now, o);
+        boolean firstLeft = false;
+        for(Step st : g.steps){
+            if(s.status[st.id] != StageState.NONE || st.kind == Step.Kind.UPGRADE && s.status[st.upgradeOf] != StageState.PLAIN) continue;
+            firstLeft |= serves(g, st, o) > 0;
+        }
         List<Choice> out = new ArrayList<>();
         for(Step st : g.steps){
             if(s.status[st.id] != StageState.NONE) continue;
@@ -172,11 +186,28 @@ public final class StagePlanner{
             c.wait = waitFor(c.cost, s, now, o, missing);
             if(Double.isInfinite(c.wait)) continue;
             c.tier = c.gain <= EPS ? 2 : c.wait <= o.horizon ? 0 : 1;
+            c.strands = strands(g, s, c, o);
+            if(firstLeft){
+                boolean first = false, other = false;
+                for(Pick p : c.picks){
+                    int k = serves(g, g.step(p.step), o);
+                    first |= k > 0;
+                    other |= k < 0;
+                }
+                c.late = other && !first;
+            }
             c.key = c.tier == 0 ? -c.gain / Math.max(c.price, EPS) : c.tier == 1 ? c.wait : c.wait * 1e-3 + c.price;
             out.add(c);
         }
-        out.sort(Comparator.comparingInt((Choice c) -> c.tier).thenComparingDouble(c -> c.key).thenComparingDouble(c -> c.wait));
+        out.sort(Comparator.comparing((Choice c) -> c.strands).thenComparing(c -> c.late).thenComparingInt(c -> c.tier).thenComparingDouble(c -> c.key).thenComparingDouble(c -> c.wait));
         return out;
+    }
+
+    /** 1: a step of a module making a first product (or of its lines), -1: of another module or plant, 0: neither */
+    static int serves(StepGraph g, Step st, StageOptions o){
+        if(st.instance < 0) return 0;
+        for(String it : g.prod.instances.get(st.instance).spec.outputs.keySet()) if(o.first.contains(it)) return 1;
+        return -1;
     }
 
     /**
@@ -227,9 +258,55 @@ public final class StagePlanner{
                 add(g, s, st, u.id, c, now, o);
             }
         }
-        c.gain = value(forecast(g, st), o) - base;
+        c.end = forecast(g, st);
+        c.gain = value(c.end, o) - base;
         c.price = price(c.cost, o);
         return c;
+    }
+
+    /**
+     * Paying for the candidate leaves the core unable to pay, within the horizon, for the line to the
+     * core that brings an item in most cheaply (per item a second) while that item comes in at under a
+     * quarter of what the line would bring - though it could before: that line would wait for a long
+     * time or forever (spend the last lead on a press, and the lead line never comes).
+     */
+    static boolean strands(StepGraph g, StageState s, Choice c, StageOptions o){
+        if(o.infinite) return false;
+        Map<String, Step> best = new TreeMap<>();
+        Map<String, Double> perRate = new TreeMap<>(), rates = new TreeMap<>();
+        for(Step x : g.steps){
+            if(x.kind != Step.Kind.MINE || x.to != null || s.status[x.id] != StageState.NONE) continue;
+            boolean picked = false;
+            for(Pick p : c.picks) picked |= p.step == x.id;
+            if(picked) continue;
+            boolean plain = plain(g, s, x.id, c.end, o);
+            double rate = 0;
+            for(int z : x.zones) rate += g.plan.zones.get(z).rate;
+            if(plain) rate *= x.slowRate;
+            if(rate <= EPS) continue;
+            double pr = price(x.cost(g.options.cat, plain), o) / rate;
+            if(pr < perRate.getOrDefault(x.what, Double.POSITIVE_INFINITY)){
+                perRate.put(x.what, pr);
+                rates.put(x.what, rate);
+                best.put(x.what, x);
+            }
+        }
+        Forecast now = forecast(g, s.status);
+        for(Map.Entry<String, Step> e : best.entrySet()){
+            if(c.end.toCore.getOrDefault(e.getKey(), 0.0) >= rates.get(e.getKey()) / 4) continue;
+            Step x = e.getValue();
+            Bom need = x.cost(g.options.cat, plain(g, s, x.id, c.end, o));
+            for(String it : need.items()){
+                int n = need.get(it);
+                double before = n - s.stock(it), after = before + c.cost.get(it);
+                if(after <= EPS) continue;
+                double rateNow = now.toCore.getOrDefault(it, 0.0), rateEnd = c.end.toCore.getOrDefault(it, 0.0);
+                boolean couldBefore = before <= EPS || rateNow > EPS && before / rateNow <= o.horizon;
+                boolean canAfter = rateEnd > EPS && after / rateEnd <= o.horizon;
+                if(couldBefore && !canAfter) return true;
+            }
+        }
+        return false;
     }
 
     /** the cheapest site not yet chosen of a line of this item into this instance (one joining no site not yet built) */

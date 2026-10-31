@@ -3,6 +3,8 @@ package autobuild.bootstrap.domain.layout;
 import autobuild.bootstrap.domain.catalog.Catalog;
 import autobuild.bootstrap.domain.shared.*;
 
+import autobuild.bootstrap.domain.survey.OrePatch;
+
 import java.util.*;
 
 /**
@@ -26,6 +28,8 @@ public final class BasePlan{
     public final boolean[][] outletRouted;
     /** what could not be built, and why (plain English, for logs and the summary) */
     public final List<String> notes = new ArrayList<>();
+    /** ore patches a share of which got no mining site, too little for its way, or no corridor */
+    public final List<OrePatch> failed = new ArrayList<>();
     public Forecast forecast;
 
     BasePlan(Reservation res, int instances, int lines){

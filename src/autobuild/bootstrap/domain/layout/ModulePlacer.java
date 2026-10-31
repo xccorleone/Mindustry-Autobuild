@@ -15,7 +15,8 @@ import java.util.*;
  * on nobody's ring, the ring around it holds nothing planned (and no other module's port lane) and
  * stays {@link #CORE_BAND} tiles off the core (else modules wall the core in and its lines find no
  * way in; only where there is no room elsewhere it may stand by the core), and every port's lane (attach tile and the tile straight out) is free and on no other ring
- * or lane.
+ * or lane. Inlet lanes and mouths stay off that band too: lines squeezed between the core and inlets
+ * facing it cross each other's mouths and seal a lane.
  * Among those the cheapest wins:
  * <pre>
  *   sum over inlets  (rate x line cost from its source patch / water body to the attach tile)
@@ -101,7 +102,7 @@ public final class ModulePlacer{
                 for(int i = 0; i < s.inlets.size() && ok; i++){
                     StampPort p = s.inlets.get(i);
                     int ax = p.x + ox, ay = p.y + oy;
-                    if(!portFree(p, true, ox, oy)){ ok = false; break; }
+                    if(!portFree(p, true, ox, oy) || coreBand >= 0 && nearCore(p, ox, oy, core, coreBand)){ ok = false; break; }
                     SupplyLine l = lines[i];
                     PathField f = l == null ? null : sourceField(l);
                     if(f == null) continue;
@@ -138,6 +139,14 @@ public final class ModulePlacer{
         for(StampPort p : s.outlets) keep(p, false);
         centres.add(new int[]{s.x0 + s.w / 2, s.y0 + s.h / 2});
         return s;
+    }
+
+    /** an inlet's lane or mouth within `band` tiles of the core */
+    static boolean nearCore(StampPort p, int ox, int oy, int[] core, int band){
+        for(int[][] ts : new int[][][]{p.lane(true, ox, oy), p.mouth(true, ox, oy)}) for(int[] t : ts){
+            if(t[0] >= core[0] - band && t[0] <= core[2] + band && t[1] >= core[1] - band && t[1] <= core[3] + band) return true;
+        }
+        return false;
     }
 
     /**

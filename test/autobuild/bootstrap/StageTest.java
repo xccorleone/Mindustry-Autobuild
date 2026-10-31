@@ -7,6 +7,7 @@ import autobuild.bootstrap.domain.module.*;
 import autobuild.bootstrap.domain.shared.*;
 import autobuild.bootstrap.domain.staging.*;
 
+import java.nio.file.*;
 import java.util.*;
 
 import static autobuild.bootstrap.Check.*;
@@ -35,6 +36,86 @@ final class StageTest{
             yes("basic: pneumatic drills later", r.schedule.entries.stream().anyMatch(e -> e.step.kind == Step.Kind.UPGRADE));
             near("basic: the end is the plan", r.plan.forecast.toCore.getOrDefault("silicon", 0.0), r.schedule.end.toCore.getOrDefault("silicon", 0.0));
         }
+
+        // press + silicon + kiln with graphite worth little (by payback alone silicon would come first):
+        // graphite first all the same, silicon and the kiln after the press
+        {
+            PlanBaseUseCase.Input in = input(LayoutTest.map(1), cat);
+            in.stage.weights.put("graphite", 0.3);
+            in.modules.add(new PlanBaseUseCase.Order(si, 1));
+            in.modules.add(new PlanBaseUseCase.Order(BuiltinModules.graphitePress(), 1));
+            in.modules.add(new PlanBaseUseCase.Order(BuiltinModules.kiln(), 1));
+            in.raw.put("copper", 1);
+            PlanBaseUseCase.Result r = PlanBaseUseCase.run(in);
+            print("graphite first", r);
+            graph("graphite first", r, cat);
+            replay("graphite first", r, in, cat);
+            yes("graphite first: everything scheduled", r.schedule.stuck.isEmpty());
+            yes("graphite first: no seed", !r.seeded);
+            int press = -1, silicon = -1, kiln = -1;
+            for(int i = 0; i < r.schedule.entries.size(); i++){
+                Step s = r.schedule.entries.get(i).step;
+                if(s.kind != Step.Kind.MODULE) continue;
+                if(s.what.equals(BuiltinModules.PRESS)) press = i;
+                if(s.what.equals(si.name)) silicon = i;
+                if(s.what.equals(BuiltinModules.KILN)) kiln = i;
+            }
+            yes("graphite first: the press before silicon and the kiln", press >= 0 && silicon > press && kiln > press);
+            yes("graphite first: metaglass made", r.schedule.end.toCore.getOrDefault("metaglass", 0.0) > 0);
+
+            PlanBaseUseCase.Input off = input(LayoutTest.map(1), cat);
+            off.stage.weights.put("graphite", 0.3);
+            off.stage.first.clear();
+            off.modules.addAll(in.modules);
+            off.raw.put("copper", 1);
+            Step firstModule = PlanBaseUseCase.run(off).schedule.entries.stream().map(e -> e.step).filter(s -> s.kind == Step.Kind.MODULE).findFirst().orElse(null);
+            yes("graphite first: by payback alone silicon first", firstModule != null && firstModule.what.equals(si.name));
+        }
+
+        // Fortress (a local terrain dump): from 300 copper and 200 lead the press must not spend the lead
+        // the first lead line needs - before, the press came first and the lead line waited forever
+        if(Files.exists(Path.of("test/local/maps/fortress.txt"))){
+            GridTerrain t = new GridTerrain(Files.readAllLines(Path.of("test/local/maps/fortress.txt")).stream().filter(l -> !l.isEmpty()).toArray(String[]::new));
+            PlanBaseUseCase.Input in = input(t, cat);
+            in.modules.add(new PlanBaseUseCase.Order(BuiltinModules.graphitePress(), 1));
+            in.modules.add(new PlanBaseUseCase.Order(si, 1));
+            in.modules.add(new PlanBaseUseCase.Order(BuiltinModules.kiln(), 1));
+            in.raw.put("copper", 1);
+            PlanBaseUseCase.Result r = PlanBaseUseCase.run(in);
+            print("fortress", r);
+            replay("fortress", r, in, cat);
+            yes("fortress: everything scheduled", r.schedule.stuck.isEmpty());
+
+            // the workshop graphite and metaglass modules: the metaglass factory's three ports sit side by
+            // side; next to the core the lines squeezed past them sealed the lead inlet
+            Blueprint graphite = blueprint(LOCAL + "graphite4.txt"), glass = blueprint(LOCAL + "metaglass4.txt");
+            if(graphite != null && glass != null){
+                PlanBaseUseCase.Input ws = input(t, cat);
+                ws.modules.add(new PlanBaseUseCase.Order(graphite, 1));
+                ws.modules.add(new PlanBaseUseCase.Order(si, 1));
+                ws.modules.add(new PlanBaseUseCase.Order(glass, 1));
+                ws.raw.put("copper", 1);
+                PlanBaseUseCase.Result w = PlanBaseUseCase.run(ws);
+                print("fortress workshop", w);
+                yes("fortress workshop: everything scheduled", w.schedule.stuck.isEmpty());
+                yes("fortress workshop: metaglass made", w.plan.forecast.toCore.getOrDefault("metaglass", 0.0) > 1);
+                yes("fortress workshop: no seed", !w.seeded);
+                List<String> modules = w.schedule.entries.stream().filter(e -> e.step.kind == Step.Kind.MODULE).map(e -> e.step.what).toList();
+                yes("fortress workshop: the graphite module first", !modules.isEmpty() && modules.get(0).equals(graphite.name));
+
+                // two other loads of Fortress (its ore differs per load): the sand line laid first took the
+                // way to the lead inlet's lane; laid out again with the lead line first, both connect
+                for(String other : List.of("fortress-s1", "fortress-s2")){
+                    Path f = Path.of("test/local/maps/" + other + ".txt");
+                    if(!Files.exists(f)) continue;
+                    PlanBaseUseCase.Input oi = input(new GridTerrain(Files.readAllLines(f).stream().filter(l -> !l.isEmpty()).toArray(String[]::new)), cat);
+                    oi.modules.addAll(ws.modules);
+                    oi.raw.put("copper", 1);
+                    PlanBaseUseCase.Result or = PlanBaseUseCase.run(oi);
+                    yes(other + " workshop: metaglass made", or.plan.forecast.toCore.getOrDefault("metaglass", 0.0) > 1);
+                }
+            }
+        }else System.out.println("SKIP test/local/maps/fortress.txt (local terrain missing)");
 
         // titanium to the core and nothing making graphite: a graphite press is added as the seed
         {
