@@ -13,11 +13,18 @@ import static autobuild.bootstrap.Check.*;
  * Runs the bootstrap layout on a terrain dumped by the server's {@code abboot dump=PATH} (default
  * goal: built-in silicon, combustion plant, a copper line, basic belts) and prints the forecast,
  * notes and the map. {@code java autobuild.bootstrap.MapRun test/local/maps/fortress.txt [belt]}
+ * <p>
+ * {@code STAGE=copper:300,lead:200}: the whole use case instead (seeds, steps ordered from that stock),
+ * printing the schedule and what stays stuck.
  */
 public class MapRun{
     public static void main(String[] args) throws Exception{
         GridTerrain t = new GridTerrain(Files.readAllLines(Path.of(args[0])).stream().filter(l -> !l.isEmpty()).toArray(String[]::new));
         String belt = args.length > 1 ? args[1] : "conveyor";
+        if(System.getenv("STAGE") != null){
+            stage(t, belt, System.getenv("STAGE"));
+            return;
+        }
         LayoutOptions o = LayoutTest.options(belt);
         double cap = o.beltSpeed();
         ModuleSpec si = ModuleAnalyzer.analyze(blueprint(FIXTURES + "silicon8.txt"), catalog(), cap);
@@ -34,6 +41,29 @@ public class MapRun{
             }
         }
         System.out.println(LayoutTest.ascii(t, plan, o.cat));
+        System.out.println(fails == 0 ? "checks OK" : fails + " checks FAILED");
+    }
+
+    static void stage(GridTerrain t, String belt, String stock) throws Exception{
+        var in = new autobuild.bootstrap.app.PlanBaseUseCase.Input();
+        in.terrain = t;
+        in.cat = catalog();
+        in.belt = belt;
+        in.power = BuiltinModules.combustionPlant();
+        in.modules.add(new autobuild.bootstrap.app.PlanBaseUseCase.Order(blueprint(FIXTURES + "silicon8.txt"), 1));
+        in.raw.put("copper", 1);
+        for(String r : stock.split(",")){
+            String[] ic = r.split(":");
+            in.stock.put(ic[0], Integer.parseInt(ic[1]));
+        }
+        var r = autobuild.bootstrap.app.PlanBaseUseCase.run(in);
+        System.out.println("forecast " + r.plan.forecast + " seeds " + r.seeds);
+        for(var l : r.production.lines) System.out.println("line " + l + " (" + l.sources.size() + " sources)");
+        for(String n : r.plan.notes) System.out.println("note: " + n);
+        for(var e : r.schedule.entries) System.out.println("  " + e);
+        System.out.println("stuck " + r.schedule.stuck + " missing " + r.schedule.missing);
+        LayoutChecks.all("map", r.plan, r.survey, in.cat, t.core());
+        if(System.getenv("PRINT") != null) System.out.println(LayoutTest.ascii(t, r.plan, in.cat));
         System.out.println(fails == 0 ? "checks OK" : fails + " checks FAILED");
     }
 

@@ -19,6 +19,8 @@ public final class Zone{
     public double rate;
     /** mining / water zones: their corridor */
     public Corridor corridor;
+    /** mining zones: the zone (index into the plan's zones) whose corridor this one's joins, or -1 */
+    public int joins = -1;
 
     Zone(Kind kind, String label){
         this.kind = kind;
