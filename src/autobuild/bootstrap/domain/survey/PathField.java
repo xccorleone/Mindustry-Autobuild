@@ -35,10 +35,28 @@ public final class PathField{
                 q.add(new long[]{1, x + y * w});
             }
         }
+        f.spread(q, usable, bridgeRange);
+        return f;
+    }
+
+    /** the same field from any tiles (indices x + y * w; cost 0 there, usable or not) */
+    public static PathField fromTiles(int w, int h, boolean[] usable, int[] seeds, int bridgeRange){
+        PathField f = new PathField(w, h);
+        PriorityQueue<long[]> q = new PriorityQueue<>(Comparator.comparingLong(a -> a[0]));
+        for(int i : seeds){
+            if(f.dist[i] == 0) continue;
+            f.dist[i] = 0;
+            q.add(new long[]{0, i});
+        }
+        f.spread(q, usable, bridgeRange);
+        return f;
+    }
+
+    void spread(PriorityQueue<long[]> q, boolean[] usable, int bridgeRange){
         while(!q.isEmpty()){
             long[] e = q.poll();
             int i = (int)e[1];
-            if(e[0] > f.dist[i]) continue;
+            if(e[0] > dist[i]) continue;
             int x = i % w, y = i / w;
             for(int d = 0; d < 4; d++){
                 for(int k = 1; k <= Math.max(1, bridgeRange); k++){
@@ -47,13 +65,12 @@ public final class PathField{
                     int n = nx + ny * w;
                     if(!usable[n]) continue;
                     long nd = e[0] + (k == 1 ? 1 : BRIDGE_COST);
-                    if(nd < f.dist[n]){
-                        f.dist[n] = (int)nd;
+                    if(nd < dist[n]){
+                        dist[n] = (int)nd;
                         q.add(new long[]{nd, n});
                     }
                 }
             }
         }
-        return f;
     }
 }

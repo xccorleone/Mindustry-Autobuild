@@ -8,6 +8,19 @@ change behaviour or settings).
 ## [Unreleased]
 ### Added
 - Bootstrap production (in development), milestone 1: game data catalog, schematic decoding and module analysis, survey, balancing. Offline tests only; nothing in the game uses it yet.
+- Bootstrap production, milestone 2: the whole end-state base laid out on the map - modules and
+  power plants (turned to fit), mining sites, lines, pump sites, power nodes - with a forecast of
+  what reaches the core from what was actually laid out. Third tab "Bootstrap" previews it and
+  queues all of it at once (step-by-step building comes in milestone 3). Built-in modules: Silicon
+  Smelter (8), a graphite press, a combustion plant (copper and lead only), the turbine plant
+  generator1. Server test `servertest-boot.sh` measures the core's income against the forecast.
+### Changed
+- Module analysis follows the game's instant transfer: a sorter or overflow gate fed by another
+  passes nothing on to a third one.
+- `servertest.sh`, `servertest-def.sh` run on macOS too (JDK and `timeout` found or replaced).
+### Fixed
+- Bridges the bootstrap tab hands to your unit keep their planned links: the game links the last
+  unlinked bridge placed to the next one in range, which could join one line's end to another line.
 
 ## [1.3.6] - 2026-10-25
 First public release. Mod behaviour as in 1.3.5.

@@ -62,6 +62,9 @@ public abstract class BuildJob{
     /** any thread: plans `variants` variants starting at `variantBase` (and the ports left to the planner); best result */
     public abstract PlanResult search(Object snapshot, int variantBase, int variants, Progress progress);
 
+    /** the plans were just handed to the player's unit (main thread) */
+    public void committed(PlanResult result){}
+
     public void cancel(){
         cancelled = true;
     }

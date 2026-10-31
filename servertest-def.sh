@@ -4,6 +4,9 @@
 # game's own flow field, then spawn waves and count kills and losses.
 #   ./servertest-def.sh <map> <turrets> <ammo|-> [options]     (WAVES=n, FIGHT=seconds)
 cd ~/mindustry-test
+JAVA="$HOME/jdk17/bin/java"; [ -x "$JAVA" ] || JAVA=java # else JDK 17 on the PATH
+# GNU timeout (Linux), else perl's alarm (macOS has no timeout)
+limit(){ if command -v timeout >/dev/null; then timeout "$@"; else perl -e 'alarm shift; exec @ARGV' "$@"; fi; }
 map=$1; shift
 {
   sleep 4; echo "host $map sandbox"
@@ -13,4 +16,4 @@ map=$1; shift
   sleep 1; echo "abwave ${WAVES:-3}"
   sleep ${FIGHT:-45}; echo "abwavecount"
   sleep 1; echo "exit"
-} | timeout $((80 + ${FIGHT:-45})) ~/jdk17/bin/java -jar server.jar 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E '\[ab|\[route|autobuild|\[E\]|Exception|at mindustry|at autobuild' | sed 's/^\[[^]]*\] //'
+} | limit $((80 + ${FIGHT:-45})) "$JAVA" -jar server.jar 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E '\[ab|\[route|autobuild|\[E\]|Exception|at mindustry|at autobuild' | sed 's/^\[[^]]*\] //'

@@ -42,6 +42,8 @@ public final class ModuleSpec{
 
     public final String name;
     public final int width, height;
+    /** what was analyzed (the layout stamps it) */
+    public Blueprint blueprint;
     public final List<Port> inlets = new ArrayList<>(), outlets = new ArrayList<>();
     /** products per second at full speed */
     public final Map<String, Double> outputs = new TreeMap<>();

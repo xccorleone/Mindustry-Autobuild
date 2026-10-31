@@ -132,6 +132,13 @@ final class ModuleAnalyzerTest{
         near("void 1 full", 0.8, o.outlets.get(0).rate);
         near("void 2", 60 / 90.0 / 2 * 0.8, o.outlets.get(1).rate);
 
+        // a gate fed by a gate passes nothing on (instant transfer): the third gate's generators get nothing
+        Blueprint gates = new Blueprint("x", 4, 3, List.of(
+            tile("conveyor", 0, 1, 0, null), tile("overflow-gate", 1, 1, 0, null), tile("overflow-gate", 2, 1, 0, null), tile("overflow-gate", 3, 1, 0, null),
+            tile("combustion-generator", 1, 0, 0, null), tile("combustion-generator", 2, 0, 0, null), tile("combustion-generator", 3, 0, 0, null),
+            tile("combustion-generator", 1, 2, 0, null), tile("combustion-generator", 2, 2, 0, null), tile("combustion-generator", 3, 2, 0, null)));
+        eq("gate chain feeds two gates' generators", "4/6", ModuleAnalyzer.analyze(gates, catalog(), CAP).working + "/6");
+
         // every powered block counts: a mender beside a press
         Blueprint mended = new Blueprint("x", 4, 2, List.of(
             tile("conveyor", 0, 0, 0, null), tile("graphite-press", 1, 0, 0, null), tile("mender", 3, 0, 0, null), tile("conveyor", 3, 1, 0, null)));

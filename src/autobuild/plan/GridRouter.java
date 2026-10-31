@@ -36,6 +36,14 @@ public class GridRouter{
         boolean pushOk(int u, int v);
     }
 
+    /** what a route ends in: a block entering (u,v) moving in direction d hits it */
+    public interface Goal{
+        boolean hit(int u, int v, int d);
+
+        /** A* estimate from (u,v), never more than the real remaining cost (0: plain Dijkstra) */
+        default double estimate(int u, int v){ return 0; }
+    }
+
     /** where a new branch can begin: the first block goes on (u,v); the items come from direction `from` (-1 unknown) */
     public static class Start{
         public final int u, v, from;
@@ -80,7 +88,7 @@ public class GridRouter{
 
     int id(int u, int v, int m){ return (u * H + v) * M + m; }
 
-    void search(List<Start> starts, int tu, int tv, int ts, Set<Integer> banned, int[] hit){
+    void search(List<Start> starts, Goal goal, Set<Integer> banned, int[] hit){
         int n = W * H * M;
         cost = new double[n];
         prev = new int[n];
@@ -99,7 +107,7 @@ public class GridRouter{
             if(total < cost[i]){
                 cost[i] = total;
                 startOf[s.u * H + s.v] = s;
-                q.add(new double[]{total + h(s.u, s.v, tu, tv, ts), i});
+                q.add(new double[]{total + est(goal, s.u, s.v), i});
             }
         }
         while(!q.isEmpty()){
@@ -108,7 +116,7 @@ public class GridRouter{
             int m = i % M, t = i / M, u = t / H, v = t % H;
             // A*: the entry's estimate is its cost so far plus the distance estimate; a stale entry has a larger one
             double g = cost[i];
-            if(cur[0] > g + h(u, v, tu, tv, ts) + 1e-9) continue;
+            if(cur[0] > g + est(goal, u, v) + 1e-9) continue;
             Start st = prev[i] < 0 ? startOf[t] : null;
             boolean source = st != null && st.source;
             int a = m < 4 ? m : m < 8 ? m - 4 : -1;
@@ -117,11 +125,10 @@ public class GridRouter{
             // pushing block here (end bridge / unloader) when the route goes on by walking or ends
             boolean pushes = landed || source;
             boolean outOk = !pushes || grid.pushOk(u, v);
-            if(ts > 0 && outOk){
+            if(goal != null && outOk){
                 for(int d = 0; d < 4; d++){
                     if(d == back) continue;
-                    int nu = u + DX[d], nv = v + DY[d];
-                    if(nu >= tu && nu < tu + ts && nv >= tv && nv < tv + ts){ hit[0] = i; hit[1] = d; return; }
+                    if(goal.hit(u + DX[d], v + DY[d], d)){ hit[0] = i; hit[1] = d; return; }
                 }
             }
             for(int d = 0; d < 4; d++){
@@ -133,7 +140,7 @@ public class GridRouter{
                     if(c >= 0){
                         double nc = g + c + (a >= 0 && d != a && !landed ? turnCost : 0);
                         int ni = id(nu, nv, d);
-                        if(nc < cost[ni]){ cost[ni] = nc; prev[ni] = i; q.add(new double[]{nc + h(nu, nv, tu, tv, ts), ni}); }
+                        if(nc < cost[ni]){ cost[ni] = nc; prev[ni] = i; q.add(new double[]{nc + est(goal, nu, nv), ni}); }
                     }
                 }
                 // bridge jump (not from the source block)
@@ -146,10 +153,21 @@ public class GridRouter{
                     if(c < 0) continue;
                     double nc = g + c + bridgeCost;
                     int ni = id(lu, lv, 4 + d);
-                    if(nc < cost[ni]){ cost[ni] = nc; prev[ni] = i; q.add(new double[]{nc + h(lu, lv, tu, tv, ts), ni}); }
+                    if(nc < cost[ni]){ cost[ni] = nc; prev[ni] = i; q.add(new double[]{nc + est(goal, lu, lv), ni}); }
                 }
             }
         }
+    }
+
+    double est(Goal goal, int u, int v){ return goal == null ? 0 : goal.estimate(u, v); }
+
+    /** the footprint (tu,tv,size ts) as a goal: entered from any side, estimate {@link #h} */
+    public Goal footprint(int tu, int tv, int ts){
+        return new Goal(){
+            public boolean hit(int u, int v, int d){ return u >= tu && u < tu + ts && v >= tv && v < tv + ts; }
+
+            public double estimate(int u, int v){ return h(u, v, tu, tv, ts); }
+        };
     }
 
     /**
@@ -170,7 +188,7 @@ public class GridRouter{
      * side): connection cost estimates for candidate consumers. Double.MAX_VALUE = unreachable.
      */
     public double[][] field(List<Start> starts){
-        search(starts, 0, 0, 0, Collections.emptySet(), new int[]{-1, -1});
+        search(starts, null, Collections.emptySet(), new int[]{-1, -1});
         double[][] f = new double[W][H];
         for(int u = 0; u < W; u++) for(int v = 0; v < H; v++){
             double best = Double.MAX_VALUE;
@@ -194,10 +212,15 @@ public class GridRouter{
      * Routes that cross themselves are searched again without the crossing tile.
      */
     public List<Step> route(List<Start> starts, int tu, int tv, int ts){
+        return route(starts, footprint(tu, tv, ts));
+    }
+
+    /** cheapest route from the starts to a block entering the goal, or null (as {@link #route(List, int, int, int)}) */
+    public List<Step> route(List<Start> starts, Goal goal){
         Set<Integer> banned = new HashSet<>();
         for(int attempt = 0; attempt < 6; attempt++){
             int[] hit = {-1, -1};
-            search(starts, tu, tv, ts, banned, hit);
+            search(starts, goal, banned, hit);
             if(hit[0] < 0) return null;
             List<Step> steps = build(hit[0], hit[1]);
             int dup = duplicate(steps);
