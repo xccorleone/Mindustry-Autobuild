@@ -6,6 +6,7 @@ public class BootstrapTest{
         CatalogTest.run();
         BlueprintCodecTest.run();
         ModuleAnalyzerTest.run();
+        SurveyTest.run();
         System.out.println(Check.fails == 0 ? "BOOTSTRAP OK" : Check.fails + " FAILED");
         if(Check.fails > 0) System.exit(1);
     }
