@@ -910,6 +910,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ### Task 3: 模块分析（端口、物品推断、满速）
 
+> 注：审查后有修正（提交 75d41c8），仓库代码以 git 为准，本节代码已过时。
+
 **Files:**
 - Create: `src/autobuild/bootstrap/domain/module/ModuleSpec.java`, `src/autobuild/bootstrap/domain/module/ModuleAnalyzer.java`
 - Create: `test/autobuild/bootstrap/ModuleAnalyzerTest.java`
@@ -1598,6 +1600,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ### Task 4: 勘探
 
+> 注：审查后有修正（提交 b82ebb9），仓库代码以 git 为准，本节代码已过时。
+
 **Files:**
 - Create: `src/autobuild/bootstrap/domain/survey/{Terrain,PathField,OrePatch,WaterBody,DangerMask,SurveyService}.java`
 - Create: `test/autobuild/bootstrap/GridTerrain.java`, `test/autobuild/bootstrap/SurveyTest.java`
@@ -2029,6 +2033,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ---
 
 ### Task 5: 配平
+
+> 注：审查后有修正（提交 20efd30 及总审查修正），仓库代码以 git 为准，本节代码已过时。
 
 **Files:**
 - Create: `src/autobuild/bootstrap/domain/production/{ProductionGoal,SupplyLine,ProductionPlan,ChainSolver}.java`

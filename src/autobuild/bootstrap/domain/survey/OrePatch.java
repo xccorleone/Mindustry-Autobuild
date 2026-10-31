@@ -3,6 +3,7 @@ package autobuild.bootstrap.domain.survey;
 /** Usable tiles of one ore, 8-connected. */
 public final class OrePatch{
     public final String item;
+    /** tile indices x + y * w, w = the surveyed map's width ({@link PathField#w}) */
     public final int[] tiles;
     public final int x0, y0, x1, y1;
     /** line cost from the core to its nearest tile */

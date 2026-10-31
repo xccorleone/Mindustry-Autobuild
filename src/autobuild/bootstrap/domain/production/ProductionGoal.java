@@ -26,7 +26,7 @@ public final class ProductionGoal{
     public final List<BlockInfo> drills = new ArrayList<>();
     /** pump for water inlets (null: none available) */
     public BlockInfo pump;
-    /** items per second of one outside line */
+    /** items per second of one outside line (required) */
     public double belt;
     /** share of a patch's ore tiles its drills end up covering */
     public double coverage = 0.8;

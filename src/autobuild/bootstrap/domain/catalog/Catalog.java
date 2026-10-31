@@ -8,7 +8,8 @@ import java.util.*;
  * What the bootstrap domain knows about the game's content, read from the text
  * {@code autobuild.bootstrap.infra.CatalogDump} writes: one line per item, liquid and block, with
  * {@code key=value} fields. In the game it is built from the live content; offline tests read a dump
- * of v160.7. Rates in the game's units: per tick (60 ticks = 1 second).
+ * of v160.7. Rates in the game's units: per tick (60 ticks = 1 second), except conveyor speed (items
+ * per second, as the game displays it).
  */
 public class Catalog{
     public static final class ItemInfo{

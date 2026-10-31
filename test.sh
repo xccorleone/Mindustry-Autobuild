@@ -5,7 +5,7 @@
 set -e
 BIN="$HOME/jdk17/bin/"
 [ -x "${BIN}javac" ] || BIN="" # else JDK 17 on the PATH
-if grep -rlE "import (mindustry|arc)\." src/autobuild/bootstrap/domain; then
+if grep -rlE "^import (static )?(mindustry|arc)\." src/autobuild/bootstrap/domain; then
     echo "the bootstrap domain must not import game classes"
     exit 1
 fi

@@ -131,5 +131,10 @@ final class ModuleAnalyzerTest{
         near("graphite", 2 * 60 / 90.0 * 0.8, o.outputs.get("graphite"));
         near("void 1 full", 0.8, o.outlets.get(0).rate);
         near("void 2", 60 / 90.0 / 2 * 0.8, o.outlets.get(1).rate);
+
+        // every powered block counts: a mender beside a press
+        Blueprint mended = new Blueprint("x", 4, 2, List.of(
+            tile("conveyor", 0, 0, 0, null), tile("graphite-press", 1, 0, 0, null), tile("mender", 3, 0, 0, null), tile("conveyor", 3, 1, 0, null)));
+        near("mender power", catalog().block("mender").power * 60, ModuleAnalyzer.analyze(mended, catalog(), CAP).powerUse);
     }
 }

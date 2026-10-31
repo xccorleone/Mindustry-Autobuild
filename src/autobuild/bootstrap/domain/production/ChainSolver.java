@@ -17,19 +17,24 @@ import java.util.*;
  * <li>A supply line per module inlet (at most one outside belt's worth) and per raw line to the core.</li>
  * <li>Allocation - power plants' lines first (nothing runs without power), then modules', then the
  *     core's, biggest first: nearest ore patches (water bodies) with capacity left; a patch gives
- *     tiles x coverage x the best allowed drill's rate, a water body tiles x pump rate. Lines left
- *     short are marked limiting.</li>
- * <li>A module runs at its scarcest line's share of what that inlet takes - short of ore, or held to
- *     one belt - so its other lines need less: their targets are scaled to it and everything is
- *     allocated again (once: ore this frees is not offered back to other short modules). The line
- *     setting a module's speed, if ore is what it lacks, is marked limiting; so is any short core line.</li>
+ *     tiles x coverage x the best allowed drill's rate, a water body tiles x pump rate.</li>
+ * <li>A module runs at its scarcest item's share of what its inlets for that item take together -
+ *     short of ore, or held to one belt per inlet - so its other lines need less: every line's target
+ *     is scaled to it and everything is allocated again (once: ore this frees is not offered back to
+ *     other short modules), which also spreads scarce ore over the inlets sharing an item. The short
+ *     lines of the item setting a module's speed, if ore is what they lack, are marked limiting; so is
+ *     any core line still short after the last allocation.</li>
  * <li>Plants deliver power in proportion to the fuel and water they get.</li>
  * </ol>
  */
 public final class ChainSolver{
     private ChainSolver(){}
 
+    /** @throws IllegalArgumentException for a module that can't be used ({@link ModuleSpec#error}) or no belt speed */
     public static ProductionPlan solve(ProductionGoal goal, SurveyService.Report survey, Catalog cat){
+        if(goal.belt <= 0) throw new IllegalArgumentException("goal.belt must be set");
+        for(ProductionGoal.ModuleOrder o : goal.modules) if(!o.spec.ok()) throw new IllegalArgumentException(o.spec.name + ": " + o.spec.error);
+        if(goal.power != null && !goal.power.ok()) throw new IllegalArgumentException(goal.power.name + ": " + goal.power.error);
         ProductionPlan plan = new ProductionPlan();
         double use = 0, own = 0;
         for(ProductionGoal.ModuleOrder o : goal.modules){
@@ -50,6 +55,7 @@ public final class ChainSolver{
             ModuleSpec spec = plan.instances.get(m).spec;
             for(int i = 0; i < spec.inlets.size(); i++){
                 Port in = spec.inlets.get(i);
+                if(in.rate <= 0) continue; // its item feeds no working crafter
                 double wanted = in.liquid ? in.rate : Math.min(in.rate, goal.belt);
                 if(!in.liquid && in.rate > goal.belt + 1e-6) plan.beltLimited.add(new double[]{m, i, in.rate});
                 plan.lines.add(new SupplyLine(in.item(), in.liquid, m, i, in.rate, wanted));
@@ -60,15 +66,22 @@ public final class ChainSolver{
         });
 
         allocate(plan, goal, survey, cat);
-        for(SupplyLine l : plan.lines) if(l.toCore()) l.limiting = l.supplied < l.wanted - 1e-6;
         boolean scaled = false;
         for(int m = 0; m < plan.instances.size(); m++){
+            Map<String, double[]> byItem = new TreeMap<>(); // item -> {supplied, demand} over the module's lines
+            for(SupplyLine l : plan.lines){
+                if(l.instance != m) continue;
+                double[] e = byItem.computeIfAbsent(l.item, k -> new double[2]);
+                e[0] += l.supplied;
+                e[1] += l.demand;
+            }
             double k = 1;
-            for(SupplyLine l : plan.lines) if(l.instance == m && l.demand > 0) k = Math.min(k, l.supplied / l.demand);
+            for(double[] e : byItem.values()) if(e[1] > 0) k = Math.min(k, e[0] / e[1]);
             plan.instances.get(m).factor = k;
             for(SupplyLine l : plan.lines){
                 if(l.instance != m) continue;
-                l.limiting = l.supplied < l.wanted - 1e-6 && l.supplied / l.demand <= k + 1e-9;
+                double[] e = byItem.get(l.item);
+                l.limiting = l.supplied < l.wanted - 1e-6 && e[0] / e[1] <= k + 1e-9;
                 if(k < 1 - 1e-6 && l.target > l.demand * k + 1e-9){
                     l.target = l.demand * k;
                     scaled = true;
@@ -76,6 +89,7 @@ public final class ChainSolver{
             }
         }
         if(scaled) allocate(plan, goal, survey, cat);
+        for(SupplyLine l : plan.lines) if(l.toCore()) l.limiting = l.supplied < l.wanted - 1e-6;
         for(Instance in : plan.instances) if(in.power) plan.powerSupply += in.spec.powerGen * in.factor;
         plan.powerShort = plan.powerSupply < plan.powerDemand - 1e-6;
         return plan;

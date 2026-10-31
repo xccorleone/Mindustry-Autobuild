@@ -1,5 +1,6 @@
 package autobuild.bootstrap;
 
+import autobuild.bootstrap.domain.catalog.Catalog;
 import autobuild.bootstrap.domain.module.*;
 import autobuild.bootstrap.domain.production.*;
 import autobuild.bootstrap.domain.survey.*;
@@ -86,22 +87,53 @@ final class ChainSolverTest{
         near("belts halve the module", 0.5, b.instances.get(0).factor);
         eq("belts are no ore shortfall", 0, b.shortfalls().size());
 
-        // little sand: the first sand line gets all 40 tiles' 4.8/s, the second none - only that one sets the speed
+        // little sand: 40 tiles give 4.8/s for two 10/s inlets - the module runs at 0.24, the sand split over both
         SurveyService.Report sandy = SurveyService.survey(map(2, 12), new SurveyService.Options());
         ProductionGoal fewSand = goal(10);
         fewSand.power = null;
         fewSand.raw.clear();
         ProductionPlan s = ChainSolver.solve(fewSand, sandy, catalog());
-        eq("one bottleneck", 1, s.shortfalls().size());
-        yes("the empty sand line limits", line(s, 0, 2).limiting);
-        yes("the short sand line doesn't", !line(s, 0, 1).limiting);
+        near("scarce sand sets the speed", 0.24, s.instances.get(0).factor);
+        near("sand split, line 1", 2.4, line(s, 0, 1).supplied);
+        near("sand split, line 2", 2.4, line(s, 0, 2).supplied);
+        eq("sand is the bottleneck", 2, s.shortfalls().size());
+        yes("sand lines limit", line(s, 0, 1).limiting && line(s, 0, 2).limiting);
         yes("the short coal line doesn't", !line(s, 0, 0).limiting);
+
+        // a core sand line next to a coal-starved module gets the sand the module no longer needs
+        ProductionGoal shared = goal(10);
+        shared.power = null;
+        shared.raw.clear();
+        shared.raw.put("sand", 1);
+        ProductionPlan sh = ChainSolver.solve(shared, survey, catalog());
+        near("core sand filled after the slowdown", 10, line(sh, -1, -1).supplied);
+        yes("core sand not limiting", !line(sh, -1, -1).limiting);
+        eq("coal is the only bottleneck", 1, sh.shortfalls().size());
+
+        // goals the solver refuses
+        Catalog cat = catalog();
+        ProductionGoal noBelt = goal(10);
+        noBelt.belt = 0;
+        yes("belt speed required", throwsIae(() -> ChainSolver.solve(noBelt, survey, cat)));
+        ProductionGoal broken = goal(10);
+        broken.modules.add(new ProductionGoal.ModuleOrder(new ModuleSpec("x", 1, 1), 1));
+        broken.modules.get(1).spec.error = "no inlet";
+        yes("unusable module refused", throwsIae(() -> ChainSolver.solve(broken, survey, cat)));
 
         // no coal at all: the plant burns nothing and makes no power
         ProductionPlan dark = ChainSolver.solve(goal(10), SurveyService.survey(map(10, 0), new SurveyService.Options()), catalog());
         near("starved plant", 0, dark.powerSupply);
         yes("power short", dark.powerShort);
         yes("plant fuel limits", line(dark, 1, 1).limiting);
+    }
+
+    static boolean throwsIae(Runnable r){
+        try{
+            r.run();
+            return false;
+        }catch(IllegalArgumentException e){
+            return true;
+        }
     }
 
     static SupplyLine line(ProductionPlan p, int instance, int inlet){

@@ -25,6 +25,7 @@ import static autobuild.bootstrap.domain.shared.Dir.*;
  * <li><b>Items</b>: an edge inlet's item is not written anywhere, so every assignment of candidate
  *     items (what the module's crafters eat, {@link #FUEL} for generators) is tried; the one letting
  *     the module run fastest wins, then the one leaking least into outlets; a tie is an error.</li>
+ * <li><b>Power</b>: every block using power counts at full speed (working crafters, menders, ...).</li>
  * <li><b>Rates</b>: inlets and outlets carry at most their belt's speed (bridges and markers: the given
  *     default); the module runs at the share of its crafters' capacity that the inlets and every
  *     outlet allow, a product splitting evenly over the outlets it reaches.</li>
@@ -417,10 +418,11 @@ public final class ModuleAnalyzer{
             Port in = inlets.get(i);
             in.rate = ds[0] * f * (in.cap == Double.MAX_VALUE ? 1.0 / ds[2] : in.cap / ds[1]);
         }
-        for(int ci = alive.nextSetBit(0); ci >= 0; ci = alive.nextSetBit(ci + 1)){
-            Part c = parts.get(ci);
-            if(c.kind().equals("crafter")) spec.powerUse += c.b.power * 60.0;
-            else spec.powerGen += c.b.gen * 60.0 * f;
+        for(int pi = 0; pi < parts.size(); pi++){
+            Part p = parts.get(pi);
+            if(p.kind().equals("crafter") && !alive.get(pi)) continue;
+            spec.powerUse += p.b.power * 60.0;
+            if(alive.get(pi) && p.kind().equals("generator")) spec.powerGen += p.b.gen * 60.0 * f;
         }
         spec.working = alive.cardinality();
         spec.factor = f;
