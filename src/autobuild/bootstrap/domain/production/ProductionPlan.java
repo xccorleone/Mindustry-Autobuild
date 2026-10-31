@@ -9,6 +9,8 @@ public final class ProductionPlan{
     public static final class Instance{
         public final ModuleSpec spec;
         public final boolean power;
+        /** makes a product the goal wants first ({@link ProductionGoal#first}): its lines get ore and room first */
+        public boolean first;
         /** share of its full speed it gets: its scarcest line, ore or belt */
         public double factor = 1;
 
@@ -22,6 +24,8 @@ public final class ProductionPlan{
     public final List<SupplyLine> lines = new ArrayList<>();
     /** power per second the modules use beyond their own generation, and the plants' output with the fuel they get */
     public double powerDemand, powerSupply;
+    /** the goal's {@link ProductionGoal#fetch}: the layout drops a mining site giving less for its way */
+    public double fetch;
     /** modules need power but no plant is available */
     public boolean noPower;
     /** the plants make less than the modules use (no plant, or plants short of fuel / water) */

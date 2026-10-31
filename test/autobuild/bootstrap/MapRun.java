@@ -15,7 +15,9 @@ import static autobuild.bootstrap.Check.*;
  * notes and the map. {@code java autobuild.bootstrap.MapRun test/local/maps/fortress.txt [belt]}
  * <p>
  * {@code STAGE=copper:300,lead:200}: the whole use case instead (seeds, steps ordered from that stock),
- * printing the schedule and what stays stuck.
+ * printing the schedule and what stays stuck; {@code MODULES=graphite4,silicon8,metaglass4} picks its
+ * modules (a local or fixture blueprint by file name, {@code press} / {@code kiln} the built-in ones;
+ * default silicon8).
  */
 public class MapRun{
     public static void main(String[] args) throws Exception{
@@ -50,7 +52,11 @@ public class MapRun{
         in.cat = catalog();
         in.belt = belt;
         in.power = BuiltinModules.combustionPlant();
-        in.modules.add(new autobuild.bootstrap.app.PlanBaseUseCase.Order(blueprint(FIXTURES + "silicon8.txt"), 1));
+        for(String m : System.getenv().getOrDefault("MODULES", "silicon8").split(",")){
+            Blueprint b = m.equals("press") ? BuiltinModules.graphitePress() : m.equals("kiln") ? BuiltinModules.kiln()
+                : Files.exists(Path.of(LOCAL + m + ".txt")) ? blueprint(LOCAL + m + ".txt") : blueprint(FIXTURES + m + ".txt");
+            in.modules.add(new autobuild.bootstrap.app.PlanBaseUseCase.Order(b, 1));
+        }
         in.raw.put("copper", 1);
         for(String r : stock.split(",")){
             String[] ic = r.split(":");
@@ -58,7 +64,11 @@ public class MapRun{
         }
         var r = autobuild.bootstrap.app.PlanBaseUseCase.run(in);
         System.out.println("forecast " + r.plan.forecast + " seeds " + r.seeds);
-        for(var l : r.production.lines) System.out.println("line " + l + " (" + l.sources.size() + " sources)");
+        for(var l : r.production.lines){
+            StringBuilder src = new StringBuilder();
+            for(var sh : l.sources) src.append(' ').append(sh.patch != null ? sh.patch : sh.water).append(String.format(" %.2f;", sh.rate));
+            System.out.println("line " + l + ":" + src);
+        }
         for(String n : r.plan.notes) System.out.println("note: " + n);
         for(var e : r.schedule.entries) System.out.println("  " + e);
         System.out.println("stuck " + r.schedule.stuck + " missing " + r.schedule.missing);

@@ -30,4 +30,17 @@ public final class ProductionGoal{
     public double belt;
     /** share of a patch's ore tiles its drills end up covering */
     public double coverage = 0.8;
+    /** products made first: modules making them get the ore before power plants and other modules */
+    public final Set<String> first = new TreeSet<>(Set.of("graphite"));
+    /**
+     * An ore patch is used only for at least this much per second per unit of line cost from the core
+     * (a bridge jump costs 2: about 12 items to build) - no long line for a little ore.
+     */
+    public double fetch = 0.027;
+
+    /** the module makes one of the {@link #first} products */
+    public boolean first(ModuleSpec spec){
+        for(String it : spec.outputs.keySet()) if(first.contains(it)) return true;
+        return false;
+    }
 }

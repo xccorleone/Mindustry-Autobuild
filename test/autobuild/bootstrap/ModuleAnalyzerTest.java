@@ -51,6 +51,14 @@ final class ModuleAnalyzerTest{
         near("generator coal", 4 * 60 / 90.0, g.inlets.get(1).rate);
         eq("generator has no node", false, g.hasNode);
         eq("generator no outlet", 0, g.outlets.size());
+
+        // the built-in kiln: its markers say which inlet takes which item
+        ModuleSpec k = ModuleAnalyzer.analyze(BuiltinModules.kiln(), catalog(), CAP);
+        eq("built-in kiln ok", null, k.error);
+        eq("built-in kiln inlets", "lead@0,1>0 sand@1,0>1", ports(k.inlets));
+        near("built-in kiln metaglass", 2, k.outputs.get("metaglass"));
+        near("built-in kiln power", 0.6 * 60, k.powerUse);
+        eq("built-in kiln graphite", 30, k.cost.get("graphite"));
     }
 
     static void local() throws Exception{

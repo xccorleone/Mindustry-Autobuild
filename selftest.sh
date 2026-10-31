@@ -11,6 +11,12 @@ JAVA="$HOME/jdk17/bin/java"; [ -x "$JAVA" ] || JAVA=java # else JDK 17 on the PA
 ./gradlew jar --no-daemon -q
 mkdir -p ~/mindustry-test/data/mods
 cp build/libs/mindustry-autobuildDesktop.jar ~/mindustry-test/data/mods/autobuild.jar
+# the player's own blueprints for the bootstrap tab: the local copies (test/local/blueprints, base64
+# text, kept out of git) become schematics of the test client
+mkdir -p ~/mindustry-test/data/schematics
+for f in test/local/blueprints/*.txt; do
+  [ -f "$f" ] && base64 -d -i "$f" -o ~/mindustry-test/data/schematics/"$(basename "$f" .txt)".msch
+done
 STEAM="$HOME/Library/Application Support/Steam/steamapps/common/Mindustry/Mindustry.app/Contents/Resources/desktop.jar"
 JAR=~/mindustry-test/Mindustry.jar
 [ -f "$JAR" ] || JAR="${MINDUSTRY_JAR:-$STEAM}"

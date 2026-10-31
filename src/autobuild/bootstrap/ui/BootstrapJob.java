@@ -25,14 +25,19 @@ import static mindustry.Vars.*;
 
 /**
  * Third tab, "Bootstrap": the selected region is the base area. The player picks how many of each
- * module (built-in or their own schematics), a power plant, raw lines to the core and the belt; the
+ * module (built-in or their own schematics; at first one of each of {@link #DEFAULTS}, the one making
+ * most of it), a power plant, raw lines to the core and the belt; the
  * whole end-state base is planned at once, cut into steps ordered from the core's stock, and
  * previewed with the step numbers. "Build" starts the {@link Director}: it hands the player's unit
  * one step after another as the core can pay for them ({@link DirectorHud} shows how far it is).
  */
 public class BootstrapJob extends BuildJob{
-    /** module name -> count */
+    /** products a module is picked for at first: the one making most of it alone */
+    static final String[] DEFAULTS = {"graphite", "silicon", "metaglass"};
+
+    /** module name -> count (the defaults are picked once the blueprints are read) */
     public final ObjectIntMap<String> counts = new ObjectIntMap<>();
+    boolean picked;
     public String power = BuiltinModules.COMBUSTION;
     public final ObjectIntMap<String> raw = new ObjectIntMap<>();
     /** null until the content is loaded (the job is made with the mod): then the plain conveyor */
@@ -50,7 +55,6 @@ public class BootstrapJob extends BuildJob{
     GameSite site;
 
     public BootstrapJob(){
-        counts.put("Silicon Smelter (8)", 1);
         raw.put("copper", 1);
         Events.on(WorldLoadEvent.class, e -> {
             if(director != null) Log.info("[autobuild] bootstrap: a new world, the director stops");
@@ -83,8 +87,9 @@ public class BootstrapJob extends BuildJob{
         if(blueprints.isEmpty()){
             Blueprint si = GameBlueprints.builtin(GameBlueprints.SILICON, catalog), turbine = GameBlueprints.builtin(GameBlueprints.TURBINE, catalog);
             if(si != null) blueprints.put(si.name, si);
-            Blueprint press = BuiltinModules.graphitePress(), plant = BuiltinModules.combustionPlant();
+            Blueprint press = BuiltinModules.graphitePress(), kiln = BuiltinModules.kiln(), plant = BuiltinModules.combustionPlant();
             blueprints.put(press.name, press);
+            blueprints.put(kiln.name, kiln);
             blueprints.put(plant.name, plant);
             if(turbine != null) blueprints.put(turbine.name, turbine);
             for(Blueprint b : GameBlueprints.schematics()) if(!blueprints.containsKey(b.name)) blueprints.put(b.name, b);
@@ -100,6 +105,22 @@ public class BootstrapJob extends BuildJob{
                 }
             }
             specCap = cap;
+        }
+        if(!picked){
+            picked = true;
+            for(String item : DEFAULTS){
+                String best = null;
+                double rate = 0;
+                for(var e : specs){
+                    ModuleSpec s = e.value;
+                    if(!product(s) || s.outputs.size() != 1 || !s.outputs.containsKey(item)) continue;
+                    if(s.outputs.get(item) > rate + 1e-9){
+                        rate = s.outputs.get(item);
+                        best = e.key;
+                    }
+                }
+                if(best != null) counts.put(best, 1);
+            }
         }
     }
 
@@ -175,7 +196,7 @@ public class BootstrapJob extends BuildJob{
         in.terrain = GameTerrain.snapshot(team);
         if(in.terrain == null){ error = Tr.t("boot.noCore"); return null; }
         in.base = new int[]{ax, ay, bx, by};
-        for(var e : counts) if(e.value > 0 && blueprints.containsKey(e.key)) in.modules.add(new PlanBaseUseCase.Order(blueprints.get(e.key), e.value));
+        for(var e : blueprints) if(counts.get(e.key, 0) > 0) in.modules.add(new PlanBaseUseCase.Order(e.value, counts.get(e.key, 0)));
         in.power = blueprints.get(power);
         for(var e : raw) if(e.value > 0) in.raw.put(e.key, e.value);
         in.belt = belt.name;

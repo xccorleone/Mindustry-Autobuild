@@ -31,6 +31,16 @@ public final class SurveyService{
             this.waters = waters;
         }
 
+        /** the same without these patches (a layout found no site or no way for them) */
+        public Report without(Collection<OrePatch> gone){
+            List<OrePatch> left = new ArrayList<>(patches);
+            left.removeAll(gone);
+            Report r = new Report(field, left, waters);
+            r.allowed = allowed;
+            r.usable = usable;
+            return r;
+        }
+
         public List<OrePatch> patches(String item){
             return patches.stream().filter(p -> p.item.equals(item)).toList();
         }

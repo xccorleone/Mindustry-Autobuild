@@ -120,6 +120,35 @@ final class ChainSolverTest{
         broken.modules.get(1).spec.error = "no inlet";
         yes("unusable module refused", throwsIae(() -> ChainSolver.solve(broken, survey, cat)));
 
+        // graphite first: scarce coal (15 tiles, 1.44/s) goes to the press before the silicon smelter
+        SurveyService.Report fewCoal = SurveyService.survey(map(10, 3), new SurveyService.Options());
+        ProductionGoal pressFirst = goal(10);
+        pressFirst.power = null;
+        pressFirst.raw.clear();
+        pressFirst.modules.add(new ProductionGoal.ModuleOrder(ModuleAnalyzer.analyze(BuiltinModules.graphitePress(), catalog(), 10), 1));
+        ProductionPlan pf = ChainSolver.solve(pressFirst, fewCoal, catalog());
+        yes("the press makes a first product", pf.instances.get(1).first && !pf.instances.get(0).first);
+        near("the press runs at full speed", 1, pf.instances.get(1).factor);
+        pressFirst.first.clear();
+        ProductionPlan bigFirst = ChainSolver.solve(pressFirst, fewCoal, catalog());
+        yes("without it the smelter takes the coal", bigFirst.instances.get(1).factor < 0.5);
+
+        // no long line for a little ore: a 2-tile lead patch far from the core is left out, the near one used
+        GridTerrain leads = map(0, 10);
+        for(int x = 14; x <= 17; x++) for(int y = 13; y <= 15; y++) leads.g[x][y] = 'l';
+        leads.g[1][18] = leads.g[2][18] = 'l';
+        SurveyService.Report lr = SurveyService.survey(leads, new SurveyService.Options());
+        ProductionGoal lead = goal(10);
+        lead.modules.clear();
+        lead.power = null;
+        lead.raw.clear();
+        lead.raw.put("lead", 1);
+        SupplyLine ll = line(ChainSolver.solve(lead, lr, catalog()), -1, -1);
+        eq("lead: only the near patch", 1, ll.sources.size());
+        eq("lead: the near patch", 12, ll.sources.get(0).patch.size());
+        lead.fetch = 0;
+        eq("lead: both without the rule", 2, line(ChainSolver.solve(lead, lr, catalog()), -1, -1).sources.size());
+
         // no coal at all: the plant burns nothing and makes no power
         ProductionPlan dark = ChainSolver.solve(goal(10), SurveyService.survey(map(10, 0), new SurveyService.Options()), catalog());
         near("starved plant", 0, dark.powerSupply);

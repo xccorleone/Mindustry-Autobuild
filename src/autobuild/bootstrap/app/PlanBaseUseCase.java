@@ -15,7 +15,8 @@ import java.util.*;
  * Plans a whole base: survey from the core, analyze the chosen blueprints, balance the goal against
  * the ore found, lay it out, cut it into steps and order them from the core's stock. When steps are
  * left that need an item nobody brings in, the goal gets a line to the core for it (copper, lead,
- * titanium) or, for graphite, a seed module (a graphite press), and the base is planned again. Pure (any thread); the game side fills {@link Input}.
+ * titanium) or, for graphite when no module making it can be built, a seed module (a graphite press),
+ * and the base is planned again. Pure (any thread); the game side fills {@link Input}.
  */
 public final class PlanBaseUseCase{
     public static final class Order{
@@ -100,6 +101,10 @@ public final class PlanBaseUseCase{
         goal.pump = o.pump == null ? null : cat.block(o.pump);
         goal.belt = cap;
         goal.coverage = o.coverage;
+        goal.first.clear();
+        goal.first.addAll(in.stage.first);
+        // first-product modules are placed first: the best spots by their ore
+        goal.modules.sort(Comparator.comparing(m -> !goal.first(m.spec)));
         if(goal.modules.isEmpty() && goal.raw.isEmpty()){
             r.error = "nothing to build";
             return r;
@@ -122,7 +127,7 @@ public final class PlanBaseUseCase{
                 r.seeds.add(it);
                 added = true;
             }
-            if(!added && r.schedule.missing.contains("graphite") && !r.seeded){
+            if(!added && r.schedule.missing.contains("graphite") && !r.seeded && !makes(r, "graphite")){
                 ModuleSpec seed = ModuleAnalyzer.analyze(BuiltinModules.graphitePress(), cat, cap);
                 if(seed.ok()){
                     goal.modules.add(new ProductionGoal.ModuleOrder(seed, 1));
@@ -139,10 +144,41 @@ public final class PlanBaseUseCase{
     /** building materials mined straight to the core when the steps need them and nothing brings them in */
     static final List<String> RAW_SEEDS = List.of("copper", "lead", "titanium");
 
-    /** balance, lay out, cut into steps and order them */
+    /**
+     * Balance, lay out, cut into steps and order them. Ore the layout could not use (no site, too little
+     * for its way, no corridor) is lost to the lines it was balanced for: the patches are left out and
+     * it all runs again (at most {@link #REBALANCE} times), keeping the better one ({@link #better}).
+     */
     static void layout(Input in, Result r, ProductionGoal goal, LayoutOptions o){
-        r.production = ChainSolver.solve(goal, r.survey, o.cat);
-        r.plan = BasePlanner.plan(in.terrain, r.survey, r.production, o);
+        Set<OrePatch> gone = new LinkedHashSet<>();
+        attempt(in, r, goal, o, r.survey);
+        for(int k = 0; k < REBALANCE && !r.plan.failed.isEmpty(); k++){
+            if(!gone.addAll(r.plan.failed)) break;
+            Result t = new Result();
+            attempt(in, t, goal, o, r.survey.without(gone));
+            if(!better(t, r, in.stage)) break;
+            r.production = t.production;
+            r.plan = t.plan;
+            r.steps = t.steps;
+            r.schedule = t.schedule;
+            r.placements = t.placements;
+        }
+    }
+
+    /** fewer steps stuck; then more made in the end (by a hundredth at least); then done sooner */
+    static boolean better(Result a, Result b, StageOptions o){
+        if(a.schedule.stuck.size() != b.schedule.stuck.size()) return a.schedule.stuck.size() < b.schedule.stuck.size();
+        double va = StagePlanner.value(a.schedule.end, o), vb = StagePlanner.value(b.schedule.end, o);
+        if(Math.abs(va - vb) > 0.01 * Math.max(va, vb)) return va > vb;
+        return a.schedule.time() < b.schedule.time() - 1e-6;
+    }
+
+    /** balancing again without the ore the layout could not use */
+    static final int REBALANCE = 2;
+
+    static void attempt(Input in, Result r, ProductionGoal goal, LayoutOptions o, SurveyService.Report survey){
+        r.production = ChainSolver.solve(goal, survey, o.cat);
+        r.plan = BasePlanner.plan(in.terrain, survey, r.production, o);
         r.steps = StepGraph.of(r.plan, r.production, o, StepGraph.defaultDowngrade(o.cat));
         StageState start = new StageState(r.steps);
         in.stock.forEach((it, n) -> start.stock.put(it, (double)n));
@@ -154,6 +190,14 @@ public final class PlanBaseUseCase{
         List<Placement> out = new ArrayList<>();
         for(Step s : seen) out.addAll(s.placements);
         r.placements = out;
+    }
+
+    /** a module making this item is planned and can be built (then a seed making it would not help) */
+    static boolean makes(Result r, String item){
+        for(Step s : r.steps.steps){
+            if(s.kind == Step.Kind.MODULE && r.production.instances.get(s.instance).spec.outputs.containsKey(item) && !r.schedule.stuck.contains(s)) return true;
+        }
+        return false;
     }
 
     static boolean ok(Input in, String block){

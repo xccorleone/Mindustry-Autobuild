@@ -29,6 +29,30 @@ change behaviour or settings).
 - Bootstrap layout: a later source of a line to the core joins one of its trunks while it stays
   below 90% of a belt (the core has only so many sides); modules keep 3 tiles off the core unless
   there is no room elsewhere.
+- Bootstrap tab starts with one module each for graphite, silicon and metaglass: the one making the
+  most of that product alone, your own schematics included (a built-in single kiln when you have no
+  metaglass schematic).
+- Bootstrap graphite first: graphite modules get the coal before power plants and other modules,
+  and other modules and plants are built only once the graphite module and its lines stand (or
+  nothing of them can be paid for). A graphite press seed is added only when no planned graphite
+  module can be built.
+- Bootstrap lines to the core get their ore before modules other than graphite (the core pays for
+  everything); power plants keep theirs before the core's.
+- Bootstrap lays a module's supply lines out together; when one finds no way to its inlet (the line
+  of a neighbouring inlet took it), the module's lines are laid out again with that one first and the
+  better layout is kept.
+- Bootstrap balances again without ore patches the layout could not use (no drill position, too
+  little for the way, no line), keeping the plan that leaves fewer steps stuck, makes more, then
+  finishes sooner.
+- Bootstrap skips ore patches too far for what they give (at least 0.027/s per unit of line cost
+  from the core): no long line for a little ore.
+- Bootstrap steps no longer spend the last of an item nothing brings in when the cheapest line to
+  the core of an item still missing needs it (a press built with the last lead left the lead line
+  waiting forever).
+- Bootstrap modules keep their inlets' lanes and mouths 3 tiles off the core: lines squeezed between
+  the core and inlets facing it sealed a metaglass factory's lead inlet.
+- `selftest.sh <map>:boot` gives the client the local blueprints in `test/local/blueprints` as
+  schematics.
 - `selftest.sh` runs on macOS, also with the Steam copy of the game (Steam need not be running).
 - Module analysis follows the game's instant transfer: a sorter or overflow gate fed by another
   passes nothing on to a third one.
