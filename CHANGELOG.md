@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 change behaviour or settings).
 
 ## [Unreleased]
+### Added
+- Bootstrap production (in development), milestone 1: game data catalog, schematic decoding and module analysis, survey, balancing. Offline tests only; nothing in the game uses it yet.
 
 ## [1.3.6] - 2026-10-25
 First public release. Mod behaviour as in 1.3.5.
