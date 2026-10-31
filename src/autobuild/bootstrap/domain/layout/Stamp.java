@@ -30,6 +30,11 @@ public final class Stamp{
             this.y = y;
             this.dir = dir;
         }
+
+        /** the tile the line comes from (inlet) or goes on to (outlet): one step outside the attach tile */
+        public int approachX(boolean inlet){ return x + (inlet ? -1 : 1) * autobuild.bootstrap.domain.shared.Dir.DX[dir]; }
+
+        public int approachY(boolean inlet){ return y + (inlet ? -1 : 1) * autobuild.bootstrap.domain.shared.Dir.DY[dir]; }
     }
 
     public final ModuleSpec spec;
