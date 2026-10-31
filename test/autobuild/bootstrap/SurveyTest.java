@@ -36,13 +36,23 @@ final class SurveyTest{
         eq("coal outside base", 0, inBase.patches("coal").size());
         eq("water outside base", 0, inBase.waters.size());
 
+        // a lake across the base edge keeps only its tiles inside; danger cuts it the same way
+        SurveyService.Options half = new SurveyService.Options();
+        half.base = new int[]{0, 0, 8, 4};
+        eq("lake cut at the base edge", 2, SurveyService.survey(MAP, half).waters.get(0).size());
+        SurveyService.Options wet = new SurveyService.Options();
+        wet.danger = DangerMask.around(MAP.width(), MAP.height(), List.of(new int[]{9, 4}), 0.5f);
+        eq("danger cuts the lake", 3, SurveyService.survey(MAP, wet).waters.get(0).size());
+
         // a wall between the core and the ore: only a bridge gets over it
         GridTerrain walled = new GridTerrain("C.##..k.");
         eq("bridge over wall", 3, SurveyService.survey(walled, new SurveyService.Options()).field.at(4, 0));
         eq("ore behind wall", "coal x1 d4", one(SurveyService.survey(walled, new SurveyService.Options()).patches("coal")));
         SurveyService.Options noBridge = new SurveyService.Options();
         noBridge.bridgeRange = 1;
-        eq("no bridge, no way", PathField.UNREACHABLE, SurveyService.survey(walled, noBridge).field.at(4, 0));
+        SurveyService.Report noWay = SurveyService.survey(walled, noBridge);
+        eq("no bridge, no way", PathField.UNREACHABLE, noWay.field.at(4, 0));
+        eq("unreachable ore left out", 0, noWay.patches("coal").size());
     }
 
     static String one(List<OrePatch> ps){

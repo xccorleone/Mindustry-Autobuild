@@ -3,9 +3,10 @@ package autobuild.bootstrap.domain.survey;
 import java.util.*;
 
 /**
- * Explores the map from the core: the line-cost field, ore patches and water bodies, all limited to
- * usable tiles - buildable, inside the base area if one is set, outside the danger mask (enemy routes
- * and their reach).
+ * Explores the map from the core: the line-cost field, ore patches and water bodies. Everything is
+ * limited to the base area (if one is set) and kept off the danger mask (enemy routes and their
+ * reach); lines and ore tiles also need buildable ground, water may be deep. Patches and bodies no
+ * line from the core can reach are left out.
  */
 public final class SurveyService{
     public static final class Options{
@@ -18,7 +19,7 @@ public final class SurveyService{
 
     public static final class Report{
         public final PathField field;
-        /** nearest first */
+        /** reachable only, nearest first */
         public final List<OrePatch> patches;
         public final List<WaterBody> waters;
 
@@ -37,10 +38,11 @@ public final class SurveyService{
 
     public static Report survey(Terrain t, Options o){
         int w = t.width(), h = t.height();
-        boolean[] usable = new boolean[w * h];
+        boolean[] allowed = new boolean[w * h], usable = new boolean[w * h];
         for(int x = 0; x < w; x++) for(int y = 0; y < h; y++){
             boolean inBase = o.base == null || (x >= o.base[0] && y >= o.base[1] && x <= o.base[2] && y <= o.base[3]);
-            usable[x + y * w] = inBase && t.buildable(x, y) && (o.danger == null || !o.danger[x][y]);
+            allowed[x + y * w] = inBase && (o.danger == null || !o.danger[x][y]);
+            usable[x + y * w] = allowed[x + y * w] && t.buildable(x, y);
         }
         PathField field = PathField.compute(w, h, usable, t.core(), o.bridgeRange);
         List<OrePatch> patches = new ArrayList<>();
@@ -51,15 +53,14 @@ public final class SurveyService{
             int[] tiles = flood(i, w, h, true, j -> usable[j] && ore.equals(t.ore(j % w, j / w)), seen);
             int d = PathField.UNREACHABLE;
             for(int j : tiles) d = Math.min(d, field.dist[j]);
-            patches.add(new OrePatch(ore, tiles, w, d));
+            if(d != PathField.UNREACHABLE) patches.add(new OrePatch(ore, tiles, w, d));
         }
         List<WaterBody> waters = new ArrayList<>();
         Arrays.fill(seen, false);
         for(int i = 0; i < w * h; i++){
             String liquid = t.liquid(i % w, i / w);
-            boolean inBase = o.base == null || (i % w >= o.base[0] && i / w >= o.base[1] && i % w <= o.base[2] && i / w <= o.base[3]);
-            if(seen[i] || liquid == null || !inBase) continue;
-            int[] tiles = flood(i, w, h, false, j -> liquid.equals(t.liquid(j % w, j / w)), seen);
+            if(seen[i] || liquid == null || !allowed[i]) continue;
+            int[] tiles = flood(i, w, h, false, j -> allowed[j] && liquid.equals(t.liquid(j % w, j / w)), seen);
             int d = PathField.UNREACHABLE;
             for(int j : tiles){
                 d = Math.min(d, field.dist[j]);
@@ -69,7 +70,7 @@ public final class SurveyService{
                     if(nd != PathField.UNREACHABLE) d = Math.min(d, nd + 1);
                 }
             }
-            waters.add(new WaterBody(liquid, tiles, d));
+            if(d != PathField.UNREACHABLE) waters.add(new WaterBody(liquid, tiles, d));
         }
         patches.sort(Comparator.comparingInt(p -> p.distance));
         waters.sort(Comparator.comparingInt(b -> b.distance));
