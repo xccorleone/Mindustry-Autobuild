@@ -9,6 +9,7 @@ import autobuild.bootstrap.domain.survey.DangerMask;
 import autobuild.plan.EnemyRoutes;
 import mindustry.entities.units.*;
 import mindustry.world.*;
+import mindustry.world.blocks.distribution.*;
 
 import java.util.*;
 
@@ -17,6 +18,29 @@ import static mindustry.Vars.*;
 /** Domain placements to the game's build plans, the live catalog, and the danger mask from enemy routes. */
 public final class GamePlans{
     private GamePlans(){}
+
+    /**
+     * The game links the bridge placed last, while it has no link, to the next bridge placed in line
+     * within range (a player's chain building): one line's end bridge would be captured by the next
+     * line's first bridge. Called after each of our bridges is finished, it forgets that bridge.
+     */
+    public static void forgetLastBridge(Block b){
+        if(b instanceof ItemBridge ib) ib.lastBuild = null;
+    }
+
+    /** our planned bridges, by position: once one is finished, {@link #forgetLastBridge} (main thread) */
+    static final IntSet watched = new IntSet();
+    static boolean listening;
+
+    public static void watchBridges(Seq<BuildPlan> plans){
+        for(BuildPlan p : plans) if(p.block instanceof ItemBridge) watched.add(Point2.pack(p.x, p.y));
+        if(listening) return;
+        listening = true;
+        arc.Events.on(mindustry.game.EventType.BlockBuildEndEvent.class, e -> {
+            if(e.breaking || e.tile == null || !watched.remove(e.tile.pos())) return;
+            forgetLastBridge(e.tile.block());
+        });
+    }
 
     /** the catalog from the loaded content (any thread once content is loaded) */
     public static Catalog liveCatalog(){

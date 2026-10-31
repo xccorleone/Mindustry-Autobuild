@@ -24,7 +24,7 @@ import static mindustry.Vars.*;
 
 /**
  * F7 / "AutoBuild" -> drag a region -> settings dialog (one tab per facility: drill field,
- * defense) -> click the ports of each kind the job needs (right-click = auto) -> background
+ * defense, bootstrap base) -> click the ports of each kind the job needs (right-click = auto) -> background
  * search, replayed as gray ghosts -> preview with Build / Another plan / previous-next / Ports /
  * Add ... / Edit / Cancel. Everything facility-specific lives in the {@link BuildJob}s.
  */
@@ -38,7 +38,8 @@ public class AutoBuildMod extends Mod{
     /** facilities; their settings persist between uses */
     final DrillFieldJob drillJob = new DrillFieldJob();
     final DefenseJob defenseJob = new DefenseJob();
-    final Seq<BuildJob> features = Seq.with(drillJob, defenseJob);
+    final autobuild.bootstrap.ui.BootstrapJob bootstrapJob = new autobuild.bootstrap.ui.BootstrapJob();
+    final Seq<BuildJob> features = Seq.with(drillJob, defenseJob, bootstrapJob);
     BuildJob job = drillJob;
     Object snapshot;
 
@@ -429,6 +430,7 @@ public class AutoBuildMod extends Mod{
             return;
         }
         for(BuildPlan p : c.plans) player.unit().addBuild(p.copy());
+        job.committed(c);
         ui.showInfoToast(Tr.t("queued", c.plans.size), 3f);
         reset();
     }

@@ -10,7 +10,7 @@ limit(){ if command -v timeout >/dev/null; then timeout "$@"; else perl -e 'alar
 map=$1; shift
 {
   sleep 4; echo "host $map survival"
-  sleep 5; echo "abboot $*"
+  sleep 10; echo "abboot $*"  # big maps take a while to load
   sleep ${WARMUP:-40}; echo "abbootcount"   # warm-up: belts fill, modules start
   sleep ${MEASURE:-60}; echo "abbootcount"  # steady state
   sleep ${MEASURE:-60}; echo "abbootcount"

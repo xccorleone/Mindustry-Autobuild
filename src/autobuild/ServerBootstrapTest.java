@@ -21,7 +21,7 @@ import static mindustry.Vars.*;
 /**
  * Dedicated-server check of the bootstrap layout without a GUI:
  * <pre>
- * abboot [si=N] [press=N] [bp=PATH:N,...] [power=combustion|turbine|none|PATH] [raw=copper:1,lead:1] [belt=NAME] [danger=RADIUS]
+ * abboot [si=N] [press=N] [bp=PATH:N,...] [power=combustion|turbine|none|PATH] [raw=copper:1,lead:1] [belt=NAME] [danger=RADIUS] [dump=PATH] [keepchain]
  *     plans a base around the core (built-in silicon module and plants, or blueprint files), places
  *     every block instantly in build order, turns waves off and remembers the core's items
  * abbootcount
@@ -49,6 +49,7 @@ public class ServerBootstrapTest{
             int si = 1, press = 0;
             String power = "combustion", raw = "copper:1";
             float danger = 0;
+            boolean keepChain = false;
             Seq<String> opts = new Seq<>();
             for(String a : args) for(String o : a.trim().split("\\s+")) if(!o.isEmpty()) opts.add(o);
             for(String opt : opts){
@@ -60,6 +61,7 @@ public class ServerBootstrapTest{
                     case "raw" -> raw = kv[1];
                     case "belt" -> in.belt = kv[1];
                     case "danger" -> danger = Strings.parseFloat(kv[1], 0);
+                    case "keepchain" -> keepChain = true; // leave the game's bridge chaining on (to see what it does)
                     case "dump" -> dump(in.terrain, kv[1]);
                     case "bp" -> {
                         for(String f : kv[1].split(",")){
@@ -112,8 +114,17 @@ public class ServerBootstrapTest{
                     if(bp.config != null) t.build.configured(null, bp.config);
                     t.build.playerPlaced(bp.config);
                 }
+                if(!keepChain) GamePlans.forgetLastBridge(bp.block);
             }
             Log.info("[abboot] placed @ blocks, @ not placeable", r.placements.size() - failed, failed);
+            // every bridge links where the plan says (the game re-links unlinked bridges on its own)
+            int wrong = 0;
+            for(Placement p : r.placements){
+                if(!(world.build(p.x, p.y) instanceof mindustry.world.blocks.distribution.ItemBridge.ItemBridgeBuild b)) continue;
+                int want = p.config instanceof int[] d ? arc.math.geom.Point2.pack(p.x + d[0], p.y + d[1]) : -1;
+                if(b.link != want && wrong++ < 3) Log.err("[abboot] bridge (@,@) links @, planned @", p.x, p.y, arc.math.geom.Point2.unpack(b.link), want == -1 ? "none" : arc.math.geom.Point2.unpack(want));
+            }
+            Log.info("[abboot] bridges linked as planned: @", wrong == 0 ? "all" : wrong + " wrong");
             remember();
         });
 
@@ -136,6 +147,19 @@ public class ServerBootstrapTest{
             for(Building b : state.rules.defaultTeam.data().buildings) if(b.power != null && b.power.graph != null && !(b instanceof mindustry.world.blocks.storage.CoreBlock.CoreBuild)) graphs.add(b.power.graph);
             for(var g : graphs) Log.info("[abbootcount] power grid: @ blocks, satisfaction @, made @/s, used @/s", g.all.size, Strings.autoFixed(g.getSatisfaction(), 2),
                 Strings.autoFixed(g.getLastPowerProduced() * 60f, 0), Strings.autoFixed(g.getLastPowerNeeded() * 60f, 0));
+            // modules: what each crafter holds
+            for(var z : zones){
+                if(z.kind != autobuild.bootstrap.domain.layout.Zone.Kind.INDUSTRIAL) continue;
+                StringBuilder g = new StringBuilder();
+                for(Placement p : z.placements){
+                    if(world.build(p.x, p.y) instanceof mindustry.world.blocks.production.GenericCrafter.GenericCrafterBuild b){
+                        g.append(" (").append(p.x).append(",").append(p.y).append(")");
+                        for(Item i : content.items()) if(b.items.get(i) > 0) g.append(i.name.charAt(0)).append(b.items.get(i));
+                        g.append(" e").append(Strings.autoFixed(b.efficiency, 1));
+                    }
+                }
+                Log.info("[abbootcount] module @:@", z.label, g);
+            }
             // power plants: generators burning (efficiency) and their fuel
             for(var z : zones){
                 if(z.kind != autobuild.bootstrap.domain.layout.Zone.Kind.POWER) continue;
