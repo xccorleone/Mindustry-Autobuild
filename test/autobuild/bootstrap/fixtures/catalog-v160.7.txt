@@ -1,0 +1,281 @@
+item copper id=0 hardness=1 flammability=0.0 lowPriority=false
+item lead id=1 hardness=1 flammability=0.0 lowPriority=false
+item metaglass id=2 hardness=0 flammability=0.0 lowPriority=false
+item graphite id=3 hardness=0 flammability=0.0 lowPriority=false
+item sand id=4 hardness=0 flammability=0.0 lowPriority=true
+item coal id=5 hardness=2 flammability=1.0 lowPriority=false
+item titanium id=6 hardness=3 flammability=0.0 lowPriority=false
+item thorium id=7 hardness=4 flammability=0.0 lowPriority=false
+item scrap id=8 hardness=0 flammability=0.0 lowPriority=false
+item silicon id=9 hardness=0 flammability=0.0 lowPriority=false
+item plastanium id=10 hardness=0 flammability=0.1 lowPriority=false
+item phase-fabric id=11 hardness=0 flammability=0.0 lowPriority=false
+item surge-alloy id=12 hardness=0 flammability=0.0 lowPriority=false
+item spore-pod id=13 hardness=0 flammability=1.15 lowPriority=false
+item blast-compound id=14 hardness=0 flammability=0.4 lowPriority=false
+item pyratite id=15 hardness=0 flammability=1.4 lowPriority=false
+item beryllium id=16 hardness=3 flammability=0.0 lowPriority=false
+item tungsten id=17 hardness=5 flammability=0.0 lowPriority=false
+item oxide id=18 hardness=0 flammability=0.0 lowPriority=false
+item carbide id=19 hardness=0 flammability=0.0 lowPriority=false
+item fissile-matter id=20 hardness=0 flammability=0.0 lowPriority=false
+item dormant-cyst id=21 hardness=0 flammability=0.1 lowPriority=false
+liquid water id=0
+liquid slag id=1
+liquid oil id=2
+liquid cryofluid id=3
+liquid neoplasm id=4
+liquid arkycite id=5
+liquid gallium id=6
+liquid ozone id=7
+liquid hydrogen id=8
+liquid nitrogen id=9
+liquid cyanogen id=10
+block graphite-press size=2 kind=crafter req=copper:75,lead:30 in=coal:2 craft=90.0 out=graphite:1
+block multi-press size=3 kind=crafter req=lead:100,graphite:50,titanium:100,silicon:25 power=1.8 in=coal:3 liquid=water:0.1 craft=30.0 out=graphite:2
+block silicon-smelter size=2 kind=crafter req=copper:30,lead:25 in=coal:1,sand:2 power=0.5 craft=40.0 out=silicon:1
+block silicon-crucible size=3 kind=crafter req=metaglass:80,titanium:120,silicon:60,plastanium:35 in=coal:4,sand:6,pyratite:1 power=4.0 craft=90.0 out=silicon:8
+block kiln size=2 kind=crafter req=copper:60,lead:30,graphite:30 in=lead:1,sand:1 power=0.6 craft=30.0 out=metaglass:1
+block plastanium-compressor size=2 kind=crafter req=lead:115,graphite:60,titanium:80,silicon:80 liquid=oil:0.25 power=3.0 in=titanium:2 craft=60.0 out=plastanium:1
+block phase-weaver size=2 kind=crafter req=lead:120,thorium:75,silicon:130 in=thorium:4,sand:10 power=5.0 craft=120.0 out=phase-fabric:1
+block surge-smelter size=3 kind=crafter req=lead:80,thorium:70,silicon:80 power=4.0 in=copper:3,lead:4,titanium:2,silicon:3 craft=75.0 out=surge-alloy:1
+block cryofluid-mixer size=2 kind=crafter req=lead:65,titanium:60,silicon:40 power=1.0 in=titanium:1 liquid=water:0.2 craft=120.0
+block pyratite-mixer size=2 kind=crafter req=copper:50,lead:25 power=0.2 in=coal:1,lead:2,sand:2 craft=80.0 out=pyratite:1
+block blast-mixer size=2 kind=crafter req=lead:30,titanium:20 in=pyratite:1,spore-pod:1 power=0.4 craft=80.0 out=blast-compound:1
+block melter size=1 kind=crafter req=copper:30,lead:35,graphite:45 power=1.0 in=scrap:1 craft=10.0
+block separator size=2 kind=other req=copper:30,titanium:25 power=1.1 liquid=slag:0.06666667
+block disassembler size=3 kind=other req=titanium:100,thorium:80,silicon:150,plastanium:40 power=4.0 in=scrap:1 liquid=slag:0.12
+block spore-press size=2 kind=crafter req=lead:35,silicon:30 in=spore-pod:1 power=0.7 craft=20.0
+block pulverizer size=1 kind=crafter req=copper:30,lead:25 in=scrap:1 power=0.5 craft=40.0 out=sand:1
+block coal-centrifuge size=2 kind=crafter req=lead:30,graphite:40,titanium:20 liquid=oil:0.1 power=0.7 craft=30.0 out=coal:1
+block incinerator size=1 kind=other req=lead:15,graphite:5 power=0.5
+block silicon-arc-furnace size=3 kind=crafter req=graphite:80,beryllium:70 in=graphite:1,sand:4 power=5.0 craft=50.0 out=silicon:4
+block electrolyzer size=3 kind=crafter req=graphite:40,silicon:50,beryllium:130,tungsten:80 liquid=water:0.16666667 power=1.0 craft=10.0
+block atmospheric-concentrator size=3 kind=crafter req=silicon:150,beryllium:180,oxide:60 power=2.0 craft=80.0
+block oxidation-chamber size=3 kind=crafter req=graphite:80,silicon:100,beryllium:120,tungsten:120 liquid=ozone:0.033333335 in=beryllium:1 power=0.5 craft=120.0 out=oxide:1
+block electric-heater size=2 kind=crafter req=beryllium:30,tungsten:30,oxide:30 power=1.6666666 craft=80.0
+block slag-heater size=3 kind=crafter req=beryllium:20,tungsten:50,oxide:20 liquid=slag:0.6666667 craft=80.0
+block phase-heater size=2 kind=crafter req=beryllium:30,oxide:30,carbide:30 in=phase-fabric:1 craft=480.0
+block heat-redirector size=3 kind=other req=graphite:10,tungsten:10
+block small-heat-redirector size=2 kind=other req=graphite:8,surge-alloy:3
+block heat-router size=3 kind=other req=graphite:10,tungsten:15
+block slag-incinerator size=1 kind=other req=tungsten:15 liquid=slag:0.0
+block carbide-crucible size=3 kind=crafter req=thorium:150,tungsten:110,oxide:60 in=tungsten:2,graphite:3 power=2.0 craft=33.75 out=carbide:1
+block slag-centrifuge size=3 kind=crafter req=graphite:60,silicon:40,oxide:40,carbide:70 power=0.033333335 in=sand:1 liquid=slag:0.6666667 craft=120.0
+block surge-crucible size=3 kind=crafter req=graphite:80,silicon:100,tungsten:80,oxide:80 in=silicon:3 liquid=slag:2.6666667 power=1.5 craft=45.0 out=surge-alloy:1
+block cyanogen-synthesizer size=3 kind=crafter req=silicon:120,beryllium:140,oxide:40,carbide:80 liquid=arkycite:2.6666667 in=graphite:1 power=2.0 craft=20.0
+block phase-synthesizer size=3 kind=crafter req=thorium:100,silicon:100,tungsten:200,carbide:90 in=thorium:2,sand:6 liquid=ozone:0.13333334 power=8.0 craft=30.0 out=phase-fabric:1
+block heat-reactor size=3 kind=crafter req=graphite:20,thorium:80,oxide:70,carbide:10 in=thorium:3 liquid=nitrogen:0.016666668 craft=600.0 out=fissile-matter:1
+block copper-wall size=1 kind=other req=copper:6
+block copper-wall-large size=2 kind=other req=copper:24
+block titanium-wall size=1 kind=other req=titanium:6
+block titanium-wall-large size=2 kind=other req=titanium:24
+block plastanium-wall size=1 kind=other req=metaglass:2,plastanium:5
+block plastanium-wall-large size=2 kind=other req=metaglass:8,plastanium:20
+block thorium-wall size=1 kind=other req=thorium:6
+block thorium-wall-large size=2 kind=other req=thorium:24
+block phase-wall size=1 kind=other req=phase-fabric:6
+block phase-wall-large size=2 kind=other req=phase-fabric:24
+block surge-wall size=1 kind=other req=surge-alloy:6
+block surge-wall-large size=2 kind=other req=surge-alloy:24
+block door size=1 kind=other req=titanium:6,silicon:4
+block door-large size=2 kind=other req=titanium:24,silicon:16
+block scrap-wall size=1 kind=other req=scrap:6
+block scrap-wall-large size=2 kind=other req=scrap:24
+block scrap-wall-huge size=3 kind=other req=scrap:54
+block scrap-wall-gigantic size=4 kind=other req=scrap:96
+block thruster size=4 kind=other req=scrap:96
+block beryllium-wall size=1 kind=other req=beryllium:6
+block beryllium-wall-large size=2 kind=other req=beryllium:24
+block tungsten-wall size=1 kind=other req=tungsten:6
+block tungsten-wall-large size=2 kind=other req=tungsten:24
+block blast-door size=2 kind=other req=silicon:24,tungsten:24
+block reinforced-surge-wall size=1 kind=other req=surge-alloy:6,tungsten:2
+block reinforced-surge-wall-large size=2 kind=other req=surge-alloy:24,tungsten:8
+block carbide-wall size=1 kind=other req=thorium:6,carbide:6
+block carbide-wall-large size=2 kind=other req=thorium:24,carbide:24
+block shielded-wall size=2 kind=other req=phase-fabric:20,surge-alloy:12,beryllium:12 power=0.05
+block mender size=1 kind=other req=copper:25,lead:30 power=0.3 in=silicon:1
+block mend-projector size=2 kind=other req=copper:50,lead:100,titanium:25,silicon:40 power=1.5 in=phase-fabric:1
+block overdrive-projector size=2 kind=other req=lead:100,titanium:75,silicon:75,plastanium:30 power=3.5 in=phase-fabric:1
+block overdrive-dome size=3 kind=other req=lead:200,titanium:130,silicon:130,plastanium:80,surge-alloy:120 power=10.0 in=phase-fabric:1,silicon:1
+block force-projector size=3 kind=other req=lead:100,titanium:75,silicon:125 in=phase-fabric:1 power=4.0
+block shock-mine size=1 kind=other req=lead:25,silicon:12
+block radar size=1 kind=other req=graphite:50,silicon:60,beryllium:10 power=0.6
+block build-tower size=3 kind=other req=thorium:60,silicon:150,oxide:40 power=3.0 liquid=nitrogen:0.05
+block regen-projector size=3 kind=other req=silicon:80,beryllium:80,tungsten:60,oxide:40 power=1.0 liquid=hydrogen:0.016666668 in=phase-fabric:1
+block shockwave-tower size=3 kind=other req=silicon:150,surge-alloy:50,tungsten:100,oxide:30 power=1.6666666
+block conveyor size=1 kind=conveyor req=copper:1 speed=5.0
+block titanium-conveyor size=1 kind=conveyor req=copper:1,lead:1,titanium:1 speed=10.0
+block plastanium-conveyor size=1 kind=other req=graphite:1,silicon:1,plastanium:1
+block armored-conveyor size=1 kind=conveyor req=metaglass:1,thorium:1,plastanium:1 speed=10.0
+block junction size=1 kind=junction req=copper:3
+block bridge-conveyor size=1 kind=bridge req=copper:6,lead:6 range=4
+block phase-conveyor size=1 kind=bridge req=lead:10,graphite:10,silicon:7,phase-fabric:5 power=0.3 range=12
+block sorter size=1 kind=sorter req=copper:2,lead:2
+block inverted-sorter size=1 kind=sorter req=copper:2,lead:2 invert=true
+block router size=1 kind=router req=copper:3
+block distributor size=2 kind=router req=copper:4,lead:4
+block overflow-gate size=1 kind=gate req=copper:4,lead:2
+block underflow-gate size=1 kind=gate req=copper:4,lead:2 invert=true
+block unloader size=1 kind=other req=titanium:25,silicon:30
+block mass-driver size=3 kind=other req=lead:125,titanium:125,thorium:50,silicon:75 power=1.75
+block duct size=1 kind=other req=beryllium:1
+block armored-duct size=1 kind=other req=beryllium:2,tungsten:1
+block duct-router size=1 kind=other req=beryllium:10
+block overflow-duct size=1 kind=other req=graphite:8,beryllium:8
+block underflow-duct size=1 kind=other req=graphite:8,beryllium:8
+block duct-bridge size=1 kind=other req=beryllium:15
+block duct-unloader size=1 kind=other req=graphite:20,silicon:20,tungsten:10
+block surge-conveyor size=1 kind=other req=surge-alloy:1,tungsten:1 power=0.016666668
+block surge-router size=1 kind=other req=surge-alloy:5,tungsten:1 power=0.05
+block unit-cargo-loader size=3 kind=other req=silicon:80,surge-alloy:50,oxide:20 power=0.13333334 liquid=nitrogen:0.16666667
+block unit-cargo-unload-point size=2 kind=other req=silicon:60,tungsten:60
+block mechanical-pump size=1 kind=pump req=copper:15,metaglass:10 pump=0.11666667
+block rotary-pump size=2 kind=pump req=copper:70,metaglass:50,titanium:35,silicon:20 power=0.3 pump=0.2
+block impulse-pump size=3 kind=pump req=copper:80,metaglass:90,titanium:40,thorium:35,silicon:30 power=1.3 pump=0.22
+block conduit size=1 kind=conduit req=metaglass:1
+block pulse-conduit size=1 kind=conduit req=metaglass:1,titanium:2
+block plated-conduit size=1 kind=conduit req=metaglass:1,thorium:2,plastanium:1
+block liquid-router size=1 kind=liquidrouter req=metaglass:2,graphite:4
+block liquid-container size=2 kind=liquidrouter req=metaglass:15,titanium:10
+block liquid-tank size=3 kind=liquidrouter req=metaglass:40,titanium:30
+block liquid-junction size=1 kind=other req=metaglass:8,graphite:4
+block bridge-conduit size=1 kind=liquidbridge req=metaglass:8,graphite:4 range=4
+block phase-conduit size=1 kind=liquidbridge req=metaglass:20,titanium:10,silicon:7,phase-fabric:5 power=0.3 range=12
+block reinforced-pump size=2 kind=pump req=silicon:20,beryllium:40,tungsten:30 liquid=hydrogen:0.025 pump=0.33333334
+block reinforced-conduit size=1 kind=conduit req=beryllium:2
+block reinforced-liquid-junction size=1 kind=other req=graphite:4,beryllium:8
+block reinforced-bridge-conduit size=1 kind=other req=graphite:8,beryllium:20
+block reinforced-liquid-router size=1 kind=liquidrouter req=graphite:8,beryllium:4
+block reinforced-liquid-container size=2 kind=liquidrouter req=beryllium:16,tungsten:10
+block reinforced-liquid-tank size=3 kind=liquidrouter req=beryllium:50,tungsten:40
+block power-node size=1 kind=node req=copper:2,lead:6 range=6.0 links=10
+block power-node-large size=2 kind=node req=lead:10,titanium:5,silicon:3 range=15.0 links=15
+block surge-tower size=2 kind=node req=lead:10,titanium:7,silicon:15,surge-alloy:15 range=40.0 links=2
+block diode size=1 kind=other req=metaglass:10,silicon:10,plastanium:5
+block battery size=1 kind=battery req=copper:5,lead:20
+block battery-large size=3 kind=battery req=lead:50,titanium:20,silicon:30
+block combustion-generator size=1 kind=generator req=copper:25,lead:15 fuel=flammable gen=1.0 duration=120.0
+block thermal-generator size=2 kind=generator req=copper:40,lead:50,metaglass:40,graphite:35,silicon:35 gen=1.8
+block steam-generator size=2 kind=generator req=copper:35,lead:40,graphite:25,silicon:30 liquid=water:0.1 fuel=flammable gen=5.5 duration=90.0
+block differential-generator size=3 kind=generator req=copper:70,lead:100,metaglass:50,titanium:50,silicon:65 in=pyratite:1 liquid=cryofluid:0.1 gen=18.0 duration=220.0
+block rtg-generator size=2 kind=generator req=lead:100,thorium:50,silicon:75,plastanium:75,phase-fabric:25 gen=4.5 duration=840.0
+block solar-panel size=1 kind=generator req=lead:10,silicon:8 gen=0.12
+block solar-panel-large size=3 kind=generator req=lead:60,silicon:70,phase-fabric:15 gen=1.6
+block thorium-reactor size=3 kind=generator req=lead:300,metaglass:50,graphite:150,thorium:150,silicon:200 in=thorium:1 liquid=cryofluid:0.04 gen=15.0
+block impact-reactor size=4 kind=generator req=lead:500,metaglass:250,graphite:400,thorium:100,silicon:300,surge-alloy:250 power=25.0 in=blast-compound:1 liquid=cryofluid:0.25 gen=130.0
+block beam-node size=1 kind=other req=beryllium:8
+block beam-tower size=3 kind=other req=silicon:10,beryllium:30,oxide:10
+block beam-link size=3 kind=node req=silicon:250,phase-fabric:75,surge-alloy:75,beryllium:250,oxide:150,carbide:75 range=500.0 links=1
+block turbine-condenser size=3 kind=generator req=beryllium:60 gen=0.33333334
+block chemical-combustion-chamber size=3 kind=generator req=graphite:40,silicon:30,tungsten:20,oxide:40 gen=9.166667 duration=120.0
+block pyrolysis-generator size=3 kind=generator req=graphite:100,silicon:100,oxide:60,carbide:60 gen=23.333334 duration=120.0
+block flux-reactor size=5 kind=generator req=graphite:240,silicon:480,surge-alloy:120,oxide:80,carbide:60 liquid=cyanogen:0.15 gen=300.0
+block neoplasia-reactor size=5 kind=generator req=silicon:500,phase-fabric:150,surge-alloy:200,tungsten:750,oxide:150,carbide:300 liquid=arkycite:1.3333334 liquid=water:0.16666667 in=phase-fabric:1 gen=140.0 duration=180.0
+block mechanical-drill size=2 kind=drill req=copper:12 tier=2 boost=1.6 drill=copper:650.0,lead:650.0,metaglass:600.0,graphite:600.0,sand:600.0,coal:700.0,scrap:600.0,silicon:600.0,plastanium:600.0,phase-fabric:600.0,surge-alloy:600.0,spore-pod:600.0,blast-compound:600.0,pyratite:600.0,oxide:600.0,carbide:600.0,fissile-matter:600.0,dormant-cyst:600.0
+block pneumatic-drill size=2 kind=drill req=copper:18,graphite:10 tier=3 boost=1.6 drill=copper:450.0,lead:450.0,metaglass:400.0,graphite:400.0,sand:400.0,coal:500.0,titanium:550.0,scrap:400.0,silicon:400.0,plastanium:400.0,phase-fabric:400.0,surge-alloy:400.0,spore-pod:400.0,blast-compound:400.0,pyratite:400.0,beryllium:550.0,oxide:400.0,carbide:400.0,fissile-matter:400.0,dormant-cyst:400.0
+block laser-drill size=3 kind=drill req=copper:35,graphite:30,titanium:20,silicon:30 power=1.1 tier=4 boost=1.6 drill=copper:330.0,lead:330.0,metaglass:280.0,graphite:280.0,sand:280.0,coal:380.0,titanium:430.0,thorium:480.0,scrap:280.0,silicon:280.0,plastanium:280.0,phase-fabric:280.0,surge-alloy:280.0,spore-pod:280.0,blast-compound:280.0,pyratite:280.0,beryllium:430.0,oxide:280.0,carbide:280.0,fissile-matter:280.0,dormant-cyst:280.0
+block blast-drill size=4 kind=drill req=copper:65,titanium:50,thorium:75,silicon:60 power=3.0 tier=5 boost=1.8 drill=copper:330.0,lead:330.0,metaglass:280.0,graphite:280.0,sand:280.0,coal:380.0,titanium:430.0,thorium:480.0,scrap:280.0,silicon:280.0,plastanium:280.0,phase-fabric:280.0,surge-alloy:280.0,spore-pod:280.0,blast-compound:280.0,pyratite:280.0,beryllium:430.0,tungsten:530.0,oxide:280.0,carbide:280.0,fissile-matter:280.0,dormant-cyst:280.0
+block water-extractor size=2 kind=pump req=copper:30,lead:30,metaglass:30,graphite:30 power=1.5 pump=0.11
+block cultivator size=2 kind=crafter req=copper:25,lead:25,silicon:10 power=1.3333334 liquid=water:0.3 craft=100.0 out=spore-pod:1
+block oil-extractor size=3 kind=pump req=copper:150,lead:115,graphite:175,thorium:115,silicon:75 in=sand:1 power=3.0 liquid=water:0.15 pump=0.25
+block vent-condenser size=3 kind=crafter req=graphite:20,beryllium:60 power=0.5 craft=120.0
+block cliff-crusher size=2 kind=other req=graphite:25,beryllium:20 power=0.18333334
+block large-cliff-crusher size=3 kind=other req=silicon:80,surge-alloy:15,beryllium:100,tungsten:50 power=1.0 liquid=hydrogen:0.016666668 in=graphite:1
+block plasma-bore size=2 kind=other req=beryllium:40 power=0.15 liquid=hydrogen:0.004166667
+block large-plasma-bore size=3 kind=other req=silicon:100,beryllium:100,tungsten:70,oxide:25 power=0.8 liquid=hydrogen:0.008333334 liquid=nitrogen:0.05
+block impact-drill size=4 kind=drill req=graphite:60,silicon:70,beryllium:90 power=2.6666667 tier=6 boost=1.75 drill=copper:720.0,lead:720.0,metaglass:720.0,graphite:720.0,sand:720.0,coal:720.0,titanium:720.0,thorium:720.0,scrap:720.0,silicon:720.0,plastanium:720.0,phase-fabric:720.0,surge-alloy:720.0,spore-pod:720.0,blast-compound:720.0,pyratite:720.0,beryllium:360.0,tungsten:720.0,oxide:720.0,carbide:720.0,fissile-matter:720.0,dormant-cyst:720.0
+block eruption-drill size=5 kind=drill req=thorium:150,silicon:300,tungsten:250,oxide:20 power=6.0 tier=7 boost=2.0 drill=copper:281.25,lead:281.25,metaglass:281.25,graphite:281.25,sand:281.25,coal:281.25,titanium:281.25,thorium:281.25,scrap:281.25,silicon:281.25,plastanium:281.25,phase-fabric:281.25,surge-alloy:281.25,spore-pod:281.25,blast-compound:281.25,pyratite:281.25,beryllium:140.625,tungsten:281.25,oxide:281.25,carbide:281.25,fissile-matter:281.25,dormant-cyst:281.25
+block core-shard size=3 kind=core req=copper:1000,lead:800
+block core-foundation size=4 kind=core req=copper:3000,lead:3000,silicon:2000
+block core-nucleus size=5 kind=core req=copper:8000,lead:8000,thorium:4000,silicon:5000
+block core-bastion size=4 kind=core req=graphite:1000,silicon:1000,beryllium:800
+block core-citadel size=5 kind=core req=silicon:4000,beryllium:4000,tungsten:3000,oxide:1000
+block core-acropolis size=6 kind=core req=silicon:5000,beryllium:6000,tungsten:5000,oxide:3000,carbide:3000
+block container size=2 kind=other req=titanium:100
+block vault size=3 kind=other req=titanium:250,thorium:125
+block reinforced-container size=2 kind=other req=graphite:40,tungsten:30
+block reinforced-vault size=3 kind=other req=thorium:70,beryllium:100,tungsten:125
+block duo size=1 kind=other req=copper:35
+block scatter size=2 kind=other req=copper:85,lead:45
+block scorch size=1 kind=other req=copper:25,graphite:22
+block hail size=1 kind=other req=copper:40,graphite:17
+block wave size=2 kind=other req=copper:25,lead:75,metaglass:45
+block lancer size=2 kind=other req=copper:60,lead:70,titanium:30,silicon:60 power=6.0
+block arc size=1 kind=other req=copper:50,lead:50 power=3.3
+block parallax size=2 kind=other req=graphite:50,titanium:110,silicon:160 power=3.3
+block swarmer size=2 kind=other req=graphite:35,titanium:35,silicon:30,plastanium:45
+block salvo size=2 kind=other req=copper:100,graphite:80,titanium:50
+block segment size=2 kind=other req=titanium:40,thorium:80,silicon:130,phase-fabric:40 power=8.0
+block tsunami size=3 kind=other req=lead:400,metaglass:100,titanium:250,thorium:100
+block fuse size=3 kind=other req=copper:225,graphite:225,thorium:100
+block ripple size=3 kind=other req=copper:150,graphite:135,titanium:60
+block cyclone size=3 kind=other req=copper:200,titanium:125,plastanium:80
+block foreshadow size=4 kind=other req=copper:1000,metaglass:600,silicon:600,plastanium:200,surge-alloy:300 power=10.0
+block spectre size=4 kind=other req=copper:900,graphite:300,thorium:250,plastanium:175,surge-alloy:250
+block meltdown size=4 kind=other req=copper:1200,lead:350,graphite:300,silicon:325,surge-alloy:325 power=17.0
+block breach size=3 kind=other req=graphite:125,silicon:150,beryllium:150 liquid=water:0.25
+block diffuse size=3 kind=other req=graphite:200,silicon:200,beryllium:150,tungsten:50 liquid=water:0.25
+block sublimate size=3 kind=other req=silicon:200,beryllium:400,tungsten:150,oxide:40
+block titan size=4 kind=other req=thorium:400,silicon:300,tungsten:250 liquid=water:0.5 liquid=hydrogen:0.083333336
+block disperse size=4 kind=other req=thorium:50,silicon:200,beryllium:350,oxide:50 liquid=water:0.33333334
+block afflict size=4 kind=other req=graphite:250,silicon:200,surge-alloy:100,oxide:40 power=5.0
+block lustre size=4 kind=other req=graphite:200,silicon:250,oxide:50,carbide:90 liquid=nitrogen:0.1 power=3.3333333
+block scathe size=4 kind=other req=graphite:400,silicon:450,tungsten:500,oxide:100,carbide:200 liquid=water:0.25
+block smite size=5 kind=other req=silicon:800,phase-fabric:300,surge-alloy:400,oxide:200,carbide:500 liquid=water:0.25
+block malign size=5 kind=other req=graphite:500,silicon:500,phase-fabric:200,beryllium:1000,carbide:200 power=40.0
+block ground-factory size=3 kind=other req=copper:50,lead:120,silicon:80 power=1.2
+block air-factory size=3 kind=other req=copper:60,lead:70,silicon:60 power=1.2
+block naval-factory size=3 kind=other req=copper:150,lead:130,metaglass:120 power=1.2
+block additive-reconstructor size=3 kind=other req=copper:200,lead:120,silicon:90 power=3.0 in=silicon:40,graphite:40
+block multiplicative-reconstructor size=5 kind=other req=lead:650,titanium:350,thorium:650,silicon:450 power=6.0 in=silicon:130,titanium:80,metaglass:40
+block exponential-reconstructor size=7 kind=other req=lead:2000,titanium:2000,thorium:750,silicon:1000,plastanium:450,phase-fabric:600 power=13.0 in=silicon:850,titanium:750,plastanium:650 liquid=cryofluid:1.0
+block tetrative-reconstructor size=9 kind=other req=lead:4000,thorium:1000,silicon:3000,plastanium:600,phase-fabric:600,surge-alloy:800 power=25.0 in=silicon:1000,plastanium:600,surge-alloy:500,phase-fabric:350 liquid=cryofluid:3.0
+block repair-point size=1 kind=other req=copper:30,lead:30,silicon:20 power=1.0
+block repair-turret size=2 kind=other req=thorium:80,silicon:90,plastanium:60 power=5.0
+block tank-fabricator size=3 kind=other req=silicon:200,beryllium:150 power=1.5
+block ship-fabricator size=3 kind=other req=silicon:250,beryllium:200 power=1.5
+block mech-fabricator size=3 kind=other req=silicon:200,beryllium:250,tungsten:10 power=1.5
+block tank-refabricator size=3 kind=other req=silicon:100,beryllium:200,tungsten:80 power=3.0 liquid=hydrogen:0.05 in=silicon:40,tungsten:30
+block ship-refabricator size=3 kind=other req=silicon:150,beryllium:250,tungsten:120,oxide:15 power=2.5 liquid=hydrogen:0.05 in=silicon:60,tungsten:40
+block mech-refabricator size=3 kind=other req=silicon:150,beryllium:250,tungsten:175 power=2.5 liquid=hydrogen:0.05 in=silicon:50,tungsten:40
+block prime-refabricator size=5 kind=other req=thorium:250,silicon:400,tungsten:200,oxide:200 power=4.5 liquid=nitrogen:0.16666667 in=thorium:80,silicon:100
+block tank-assembler size=5 kind=other req=thorium:500,silicon:650,oxide:150,carbide:80 power=2.5 liquid=cyanogen:0.15
+block ship-assembler size=5 kind=other req=thorium:400,silicon:900,tungsten:550,oxide:200,carbide:100 power=2.5 liquid=cyanogen:0.2
+block mech-assembler size=5 kind=other req=thorium:600,silicon:1000,tungsten:550,oxide:200,carbide:200 power=3.0 liquid=cyanogen:0.2
+block basic-assembler-module size=5 kind=other req=thorium:500,phase-fabric:400,oxide:250,carbide:300 power=3.5
+block unit-repair-tower size=2 kind=other req=graphite:90,silicon:90,tungsten:80 power=1.0 liquid=ozone:0.05
+block payload-conveyor size=3 kind=other req=copper:10,graphite:10
+block payload-router size=3 kind=other req=copper:10,graphite:15
+block reinforced-payload-conveyor size=3 kind=other req=tungsten:10
+block reinforced-payload-router size=3 kind=other req=tungsten:15
+block payload-mass-driver size=3 kind=other req=graphite:20,silicon:50,tungsten:40 power=0.5
+block large-payload-mass-driver size=5 kind=other req=graphite:60,silicon:150,phase-fabric:10,tungsten:120,oxide:30 power=3.0
+block small-deconstructor size=3 kind=other req=graphite:50,silicon:70,beryllium:70,oxide:25 power=1.0
+block deconstructor size=5 kind=other req=silicon:250,beryllium:250,oxide:100,carbide:50 power=3.0
+block constructor size=3 kind=other req=silicon:50,beryllium:75,tungsten:40 power=2.5
+block large-constructor size=5 kind=other req=thorium:80,silicon:150,tungsten:200,oxide:100 power=5.0
+block payload-loader size=3 kind=other req=graphite:80,silicon:160,tungsten:90 power=0.0
+block payload-unloader size=3 kind=other req=graphite:140,silicon:220,tungsten:180 power=2.0
+block item-source size=1 kind=itemsource
+block item-void size=1 kind=itemvoid
+block liquid-source size=1 kind=liquidsource
+block illuminator size=1 kind=other req=lead:8,graphite:12,silicon:8 power=0.05
+block launch-pad size=3 kind=other req=copper:350,lead:200,titanium:150,silicon:140 power=4.0
+block advanced-launch-pad size=4 kind=other req=copper:350,lead:300,titanium:200,silicon:250 liquid=oil:0.15 power=8.0
+block landing-pad size=4 kind=other req=copper:200,graphite:100,titanium:100 liquid=water:1500.0
+block interplanetary-accelerator size=7 kind=other req=copper:16000,titanium:12000,thorium:13000,silicon:11000,phase-fabric:5000,surge-alloy:6000 power=10.0 in=copper:8000,lead:8000,thorium:4000,silicon:5000
+block message size=1 kind=other req=copper:5,graphite:5
+block switch size=1 kind=other req=copper:5,graphite:5
+block micro-processor size=1 kind=other req=copper:90,lead:50,silicon:50
+block logic-processor size=2 kind=other req=lead:320,graphite:60,thorium:50,silicon:80
+block hyper-processor size=3 kind=other req=lead:450,thorium:75,silicon:150,surge-alloy:50 liquid=cryofluid:0.08
+block memory-cell size=1 kind=other req=copper:30,graphite:30,silicon:30
+block memory-bank size=2 kind=other req=copper:30,graphite:80,silicon:80,phase-fabric:30
+block logic-display size=3 kind=other req=lead:100,metaglass:50,silicon:50
+block large-logic-display size=6 kind=other req=lead:200,metaglass:100,silicon:150,phase-fabric:75
+block tile-logic-display size=1 kind=other req=lead:8,metaglass:8,silicon:8,phase-fabric:3
+block canvas size=2 kind=other req=silicon:10,beryllium:10
+block large-canvas size=3 kind=other req=silicon:15,surge-alloy:5,beryllium:15
+block reinforced-message size=1 kind=other req=graphite:10,beryllium:5
