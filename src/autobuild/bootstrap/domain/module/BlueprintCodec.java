@@ -50,7 +50,11 @@ public final class BlueprintCodec{
         }
     }
 
-    /** version 0: the game's Schematics.mapConfig */
+    /**
+     * version 0: the game's Schematics.mapConfig for the configs the module analyzer reads - sorter and
+     * item source items, liquid source liquids, bridge links (made relative). Unloader, mass driver and
+     * illuminator configs, which the game also maps, come back as null.
+     */
     static Object mapConfig(BlockInfo b, int value, int x, int y, Catalog catalog){
         if(b == null) return null;
         switch(b.kind){
