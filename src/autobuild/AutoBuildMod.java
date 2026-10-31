@@ -9,6 +9,7 @@ import arc.math.geom.*;
 import arc.scene.ui.layout.*;
 import arc.struct.*;
 import arc.util.*;
+import autobuild.drones.*;
 import autobuild.plan.DrillLayoutPlanner.*;
 import mindustry.*;
 import mindustry.core.*;
@@ -69,13 +70,21 @@ public class AutoBuildMod extends Mod{
     int shown, nextVariant;
 
     public AutoBuildMod(){
-        Events.on(ClientLoadEvent.class, e -> buildHud());
+        Events.on(ClientLoadEvent.class, e -> {
+            buildHud();
+            ui.settings.game.checkPref(SafeDrones.setting, true);
+        });
         Events.on(WorldLoadEvent.class, e -> reset());
         Events.run(Trigger.update, this::update);
         Events.run(Trigger.draw, this::draw);
 
         String selftest = System.getProperty("autobuild.selftest");
         if(selftest != null) new ClientSelfTest(this, selftest);
+    }
+
+    @Override
+    public void init(){
+        SafeDrones.install();
     }
 
     boolean animate(){ return Core.settings.getBool("autobuild-animate", true); }
@@ -578,5 +587,6 @@ public class AutoBuildMod extends Mod{
         ServerTest.register(handler);
         ServerDefenseTest.register(handler);
         ServerBootstrapTest.register(handler);
+        ServerDroneTest.register(handler);
     }
 }
