@@ -6,13 +6,16 @@ import autobuild.bootstrap.domain.layout.*;
 import autobuild.bootstrap.domain.module.*;
 import autobuild.bootstrap.domain.production.*;
 import autobuild.bootstrap.domain.shared.Placement;
+import autobuild.bootstrap.domain.staging.*;
 import autobuild.bootstrap.domain.survey.*;
 
 import java.util.*;
 
 /**
  * Plans a whole base: survey from the core, analyze the chosen blueprints, balance the goal against
- * the ore found, lay it out. Pure (any thread); the game side fills {@link Input}.
+ * the ore found, lay it out, cut it into steps and order them from the core's stock. When steps are
+ * left that need an item nobody brings in, the goal gets a line to the core for it (copper, lead,
+ * titanium) or, for graphite, a seed module (a graphite press), and the base is planned again. Pure (any thread); the game side fills {@link Input}.
  */
 public final class PlanBaseUseCase{
     public static final class Order{
@@ -39,6 +42,10 @@ public final class PlanBaseUseCase{
         public String belt = "conveyor";
         /** blocks the player may build (null: all) */
         public Set<String> available;
+        /** items in the core; building costs nothing */
+        public final Map<String, Integer> stock = new TreeMap<>();
+        public boolean infinite;
+        public StageOptions stage = new StageOptions();
     }
 
     public static final class Result{
@@ -47,6 +54,13 @@ public final class PlanBaseUseCase{
         public BasePlan plan;
         public LayoutOptions options;
         public List<Placement> placements = List.of();
+        public StepGraph steps;
+        public Schedule schedule;
+        public StageOptions stage;
+        /** the seed module was added */
+        public boolean seeded;
+        /** added to the goal so that the steps can be paid for: raw items mined to the core, the seed module */
+        public final List<String> seeds = new ArrayList<>();
         /** blueprint name -> why it can't be used */
         public final Map<String, String> unusable = new TreeMap<>();
         public String error;
@@ -96,10 +110,50 @@ public final class PlanBaseUseCase{
         so.base = in.base;
         so.danger = in.danger;
         r.survey = SurveyService.survey(in.terrain, so);
-        r.production = ChainSolver.solve(goal, r.survey, cat);
-        r.plan = BasePlanner.plan(in.terrain, r.survey, r.production, o);
-        r.placements = r.plan.ordered(cat);
+        in.stage.infinite |= in.infinite;
+        r.stage = in.stage;
+        layout(in, r, goal, o);
+        // building needs what nobody makes: a line to the core for a raw material, then a graphite press
+        for(int round = 0; round < 4 && !r.schedule.stuck.isEmpty(); round++){
+            boolean added = false;
+            for(String it : RAW_SEEDS){
+                if(!r.schedule.missing.contains(it) || goal.raw.getOrDefault(it, 0) > 0) continue;
+                goal.raw.put(it, 1);
+                r.seeds.add(it);
+                added = true;
+            }
+            if(!added && r.schedule.missing.contains("graphite") && !r.seeded){
+                ModuleSpec seed = ModuleAnalyzer.analyze(BuiltinModules.graphitePress(), cat, cap);
+                if(seed.ok()){
+                    goal.modules.add(new ProductionGoal.ModuleOrder(seed, 1));
+                    r.seeds.add(seed.name);
+                    r.seeded = added = true;
+                }
+            }
+            if(!added) break;
+            layout(in, r, goal, o);
+        }
         return r;
+    }
+
+    /** building materials mined straight to the core when the steps need them and nothing brings them in */
+    static final List<String> RAW_SEEDS = List.of("copper", "lead", "titanium");
+
+    /** balance, lay out, cut into steps and order them */
+    static void layout(Input in, Result r, ProductionGoal goal, LayoutOptions o){
+        r.production = ChainSolver.solve(goal, r.survey, o.cat);
+        r.plan = BasePlanner.plan(in.terrain, r.survey, r.production, o);
+        r.steps = StepGraph.of(r.plan, r.production, o, StepGraph.defaultDowngrade(o.cat));
+        StageState start = new StageState(r.steps);
+        in.stock.forEach((it, n) -> start.stock.put(it, (double)n));
+        r.schedule = StagePlanner.simulate(r.steps, start, in.stage);
+        // in the order they will be built, the rest after
+        Set<Step> seen = new LinkedHashSet<>();
+        for(Schedule.Entry e : r.schedule.entries) if(e.step.kind != Step.Kind.UPGRADE) seen.add(e.step);
+        for(Step s : r.steps.steps) if(s.kind != Step.Kind.UPGRADE) seen.add(s);
+        List<Placement> out = new ArrayList<>();
+        for(Step s : seen) out.addAll(s.placements);
+        r.placements = out;
     }
 
     static boolean ok(Input in, String block){

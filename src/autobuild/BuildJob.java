@@ -65,6 +65,9 @@ public abstract class BuildJob{
     /** the plans were just handed to the player's unit (main thread) */
     public void committed(PlanResult result){}
 
+    /** "Build": true when the job takes it from here itself (else every plan goes to the player's unit) */
+    public boolean commit(PlanResult result){ return false; }
+
     public void cancel(){
         cancelled = true;
     }

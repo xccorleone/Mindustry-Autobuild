@@ -19,6 +19,7 @@ import java.util.*;
  *     peak, every module using power slows down by the same share;</li>
  * <li>the core gets the modules' products and the raw lines' items.</li>
  * </ol>
+ * A part of the base ({@link Built}) is forecast the same way: what is not built delivers nothing.
  */
 public final class Forecast{
     /** per supply line, per instance */
@@ -32,17 +33,47 @@ public final class Forecast{
         speed = new double[instances];
     }
 
+    /** What of the base stands, and how (some blocks may be built as slower stand-ins). */
+    public interface Built{
+        /** per second zone z (index into {@link BasePlan#zones}) delivers as built; 0: not built */
+        double zoneRate(int z);
+
+        /** production instance m stands */
+        boolean module(int m);
+
+        /** items per second one belt of line i carries / of instance m's ports */
+        double lineBelt(int i);
+
+        double moduleBelt(int m);
+    }
+
+    /** the whole base as planned */
     public static Forecast compute(BasePlan plan, ProductionPlan prod, LayoutOptions o){
-        Forecast f = new Forecast(prod.lines.size(), prod.instances.size());
         double belt = o.beltSpeed();
+        return compute(plan, prod, new Built(){
+            @Override public double zoneRate(int z){ return plan.zones.get(z).rate; }
+            @Override public boolean module(int m){ return true; }
+            @Override public double lineBelt(int i){ return belt; }
+            @Override public double moduleBelt(int m){ return belt; }
+        });
+    }
+
+    public static Forecast compute(BasePlan plan, ProductionPlan prod, Built b){
+        Forecast f = new Forecast(prod.lines.size(), prod.instances.size());
+        double[] supply = new double[prod.lines.size()];
+        for(int z = 0; z < plan.zones.size(); z++){
+            Zone zone = plan.zones.get(z);
+            if(zone.line >= 0) supply[zone.line] += b.zoneRate(z);
+        }
         for(int i = 0; i < prod.lines.size(); i++){
             SupplyLine l = prod.lines.get(i);
             // a core line's sources each have their own belt (each at most one belt already)
-            f.line[i] = l.liquid || l.toCore() ? plan.lineSupply[i] : Math.min(belt, plan.lineSupply[i]);
+            f.line[i] = l.liquid || l.toCore() ? supply[i] : Math.min(Math.min(b.lineBelt(i), b.moduleBelt(l.instance)), supply[i]);
         }
         for(int m = 0; m < prod.instances.size(); m++){
             ModuleSpec spec = prod.instances.get(m).spec;
-            if(plan.stamps[m] == null) continue;
+            if(plan.stamps[m] == null || !b.module(m)) continue;
+            double belt = b.moduleBelt(m);
             Map<String, double[]> byItem = new TreeMap<>();
             for(int i = 0; i < prod.lines.size(); i++){
                 SupplyLine l = prod.lines.get(i);

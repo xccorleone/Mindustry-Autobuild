@@ -22,7 +22,8 @@ import static autobuild.bootstrap.domain.shared.Dir.*;
  * <li>supply lines - plants' first, then modules', then the core's, each group biggest first: a
  *     mining site per ore share ({@link MiningSiteSolver}) with a corridor to the inlet (the core);
  *     into an inlet a second share's corridor joins the first one's line from a side, into the core
- *     every share has its own. A water line gets a pump
+ *     it joins a line of the same item that stays below {@link #JOIN_LOAD} of a belt, else gets its own
+ *     (the core has only so many sides). A water line gets a pump
  *     site ({@link WaterSiteSolver});</li>
  * <li>power nodes for everything using or making power ({@link PowerGridSolver});</li>
  * <li>the {@link Forecast} of what this layout makes.</li>
@@ -31,6 +32,9 @@ import static autobuild.bootstrap.domain.shared.Dir.*;
  * next. What can't be built is skipped and written into {@link BasePlan#notes}.
  */
 public final class BasePlanner{
+    /** a core line's later source joins a trunk only while it carries at most this share of one belt */
+    static final double JOIN_LOAD = 0.9;
+
     private BasePlanner(){}
 
     /** a port's lane as tile indices: only its own line may use them */
@@ -133,25 +137,44 @@ public final class BasePlanner{
                 plan.lineSupply[i] = r.rate;
                 continue;
             }
-            Corridor main = null;
+            // the line's corridors that reach the destination, with the zone that laid each and its load
+            List<Corridor> trunks = new ArrayList<>();
+            List<Integer> trunkZone = new ArrayList<>();
+            List<Double> trunkLoad = new ArrayList<>();
+            double belt = o.beltSpeed();
             for(SupplyLine.Share sh : l.sources){
                 MiningSite site = MiningSiteSolver.solve(t, res, o, sh.patch, sh.rate, destX, destY, i, l.toCore());
                 if(!site.ok()){
                     plan.notes.add(name + ": " + sh.patch + ": " + site.error);
                     continue;
                 }
-                // into a module inlet a second source joins the first one's line; the core takes from every
-                // side, so each source gets its own line there (joining a nearly full belt loses items)
-                boolean join = main != null && !l.toCore();
-                Corridor c = router.route(l.item, false, i, join ? i : exempt, CorridorRouter.from(site.sinkX, site.sinkY, site.sinkDir),
-                    join ? CorridorRouter.join(main) : goal, join ? Set.of() : allowed);
+                // into a module inlet a later source joins the first one's line. The core takes from every
+                // side, but it has only so many: a later source joins a trunk that stays well below one belt
+                // (joining a nearly full belt loses items), else gets its own line to the core
+                int trunk = -1;
+                if(!trunks.isEmpty() && !l.toCore()) trunk = 0;
+                for(int k = 0; k < trunks.size() && l.toCore(); k++){
+                    if(trunkLoad.get(k) + site.rate <= JOIN_LOAD * belt && (trunk < 0 || trunkLoad.get(k) < trunkLoad.get(trunk))) trunk = k;
+                }
+                Corridor c = trunk >= 0 ? router.route(l.item, false, i, i, CorridorRouter.from(site.sinkX, site.sinkY, site.sinkDir), CorridorRouter.join(trunks.get(trunk)), Set.of()) : null;
+                if(c == null && (l.toCore() || trunks.isEmpty())){
+                    trunk = -1;
+                    c = router.route(l.item, false, i, exempt, CorridorRouter.from(site.sinkX, site.sinkY, site.sinkDir), goal, allowed);
+                }
                 if(c == null){
                     for(Placement p : site.placements) res.release(p, cat.block(p.block));
                     plan.notes.add(name + ": no line from " + sh.patch);
                     continue;
                 }
-                if(main == null) main = c;
                 Zone z = new Zone(Zone.Kind.MINING, l.item);
+                if(trunk >= 0){
+                    z.joins = trunkZone.get(trunk);
+                    trunkLoad.set(trunk, trunkLoad.get(trunk) + site.rate);
+                }else{
+                    trunks.add(c);
+                    trunkZone.add(plan.zones.size());
+                    trunkLoad.add(site.rate);
+                }
                 z.line = i;
                 z.corridor = c;
                 z.rate = site.rate;

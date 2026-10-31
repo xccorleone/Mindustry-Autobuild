@@ -10,6 +10,8 @@ public class BootstrapTest{
         ChainSolverTest.run();
         StampTest.run();
         LayoutTest.run();
+        StageTest.run();
+        DirectorTest.run();
         System.out.println(Check.fails == 0 ? "BOOTSTRAP OK" : Check.fails + " FAILED");
         if(Check.fails > 0) System.exit(1);
     }

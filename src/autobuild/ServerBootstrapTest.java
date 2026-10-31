@@ -1,5 +1,6 @@
 package autobuild;
 
+import arc.*;
 import arc.struct.*;
 import arc.util.*;
 import autobuild.bootstrap.app.PlanBaseUseCase;
@@ -22,17 +23,25 @@ import static mindustry.Vars.*;
  * Dedicated-server check of the bootstrap layout without a GUI:
  * <pre>
  * abboot [si=N] [press=N] [bp=PATH:N,...] [power=combustion|turbine|none|PATH] [raw=copper:1,lead:1] [belt=NAME] [danger=RADIUS] [dump=PATH] [keepchain]
+ *        [stage [start=copper:300,lead:200] [bps=N] [speed=N]]
  *     plans a base around the core (built-in silicon module and plants, or blueprint files), places
- *     every block instantly in build order, turns waves off and remembers the core's items
+ *     every block instantly in build order, turns waves off and remembers the core's items. With
+ *     `stage`: the core holds only `start`, and the director builds the base step by step, each block
+ *     placed once the core pays for it (at most `bps` blocks a second); `speed` runs the game faster
  * abbootcount
  *     items per second the core gained since the previous count, next to the forecast
  * </pre>
  */
 public class ServerBootstrapTest{
     static final ObjectIntMap<Item> last = new ObjectIntMap<>();
-    static long lastTime;
+    /** game time of the last count, ticks (game seconds, also when the game runs faster) */
+    static double lastTime = -1;
     static Map<String, Double> forecast = Map.of();
     static List<autobuild.bootstrap.domain.layout.Zone> zones = List.of();
+    static autobuild.bootstrap.app.Director director;
+    static GameSite site;
+    static float speed = 1f, statusAt;
+    static boolean hooked;
 
     static void register(CommandHandler handler){
         handler.register("abboot", "[options...]", "AutoBuild: plan and place a bootstrap base around the core. "
@@ -49,7 +58,10 @@ public class ServerBootstrapTest{
             int si = 1, press = 0;
             String power = "combustion", raw = "copper:1";
             float danger = 0;
-            boolean keepChain = false;
+            boolean keepChain = false, stage = false;
+            String start = "copper:300,lead:200";
+            float bps = 10f;
+            speed = 1f;
             Seq<String> opts = new Seq<>();
             for(String a : args) for(String o : a.trim().split("\\s+")) if(!o.isEmpty()) opts.add(o);
             for(String opt : opts){
@@ -63,6 +75,10 @@ public class ServerBootstrapTest{
                     case "danger" -> danger = Strings.parseFloat(kv[1], 0);
                     case "keepchain" -> keepChain = true; // leave the game's bridge chaining on (to see what it does)
                     case "dump" -> dump(in.terrain, kv[1]);
+                    case "stage" -> stage = true;
+                    case "start" -> start = kv[1];
+                    case "bps" -> bps = Strings.parseFloat(kv[1], 10f);
+                    case "speed" -> speed = Strings.parseFloat(kv[1], 1f);
                     case "bp" -> {
                         for(String f : kv[1].split(",")){
                             int c = f.lastIndexOf(':');
@@ -87,6 +103,19 @@ public class ServerBootstrapTest{
             }
             if(danger > 0) in.danger = GamePlans.danger(danger, 15f);
 
+            if(stage){
+                // a nearly empty core: only the start items
+                var core = state.rules.defaultTeam.core();
+                core.items.clear();
+                for(String r : start.split(",")){
+                    String[] ic = r.split(":");
+                    Item it = content.item(ic[0]);
+                    if(it != null) core.items.set(it, Strings.parseInt(ic[1], 0));
+                }
+                for(Item it : content.items()) if(core.items.get(it) > 0) in.stock.put(it.name, core.items.get(it));
+                in.stage.capacity = core.storageCapacity;
+            }
+
             long t0 = Time.millis();
             PlanBaseUseCase.Result r = PlanBaseUseCase.run(in);
             if(r.error != null){ Log.err("[abboot] @", r.error); return; }
@@ -99,6 +128,15 @@ public class ServerBootstrapTest{
             forecast = r.plan.forecast.toCore;
             zones = r.plan.zones;
 
+            if(stage){
+                Log.info("[abstage] @ steps, all paid for at ~@s; seeds: @; stuck: @ missing @", r.steps.steps.size(), (int)r.schedule.time(), r.seeds,
+                    r.schedule.stuck, r.schedule.missing);
+                for(var e : r.schedule.entries) Log.info("[abstage] plan @", e);
+                startDirector(r, bps);
+                remember();
+                return;
+            }
+
             int failed = 0;
             for(Placement p : r.placements){
                 BuildPlan bp = GamePlans.toBuildPlan(p);
@@ -106,14 +144,7 @@ public class ServerBootstrapTest{
                     if(failed++ < 5) Log.err("[abboot] not placeable: @ at (@,@)", bp.block.name, bp.x, bp.y);
                     continue;
                 }
-                Tile t = world.tile(bp.x, bp.y);
-                t.setBlock(bp.block, state.rules.defaultTeam, bp.rotation);
-                // same sequence as ConstructBlock.constructFinish for a player-built plan
-                if(t.build != null){
-                    t.build.placed();
-                    if(bp.config != null) t.build.configured(null, bp.config);
-                    t.build.playerPlaced(bp.config);
-                }
+                GamePlans.placeNow(bp, state.rules.defaultTeam);
                 if(!keepChain) GamePlans.forgetLastBridge(bp.block);
             }
             Log.info("[abboot] placed @ blocks, @ not placeable", r.placements.size() - failed, failed);
@@ -130,8 +161,8 @@ public class ServerBootstrapTest{
 
         handler.register("abbootcount", "AutoBuild: items per second the core gained since the last count", args -> {
             Building core = state.rules.defaultTeam.core();
-            if(core == null || lastTime == 0){ Log.err("run abboot first"); return; }
-            float secs = Time.timeSinceMillis(lastTime) / 1000f;
+            if(core == null || lastTime < 0){ Log.err("run abboot first"); return; }
+            float secs = (float)((Time.time - lastTime) / 60.0);
             StringBuilder s = new StringBuilder();
             Set<String> items = new TreeSet<>(forecast.keySet());
             for(Item i : content.items()) if(core.items.get(i) != last.get(i, 0)) items.add(i.name);
@@ -211,6 +242,59 @@ public class ServerBootstrapTest{
         });
     }
 
+    /** the director with a builder that places each block once the core pays for it, logging every step */
+    static void startDirector(PlanBaseUseCase.Result r, float bps){
+        site = GameSite.instant(state.rules.defaultTeam, autobuild.bootstrap.domain.staging.StepGraph.defaultDowngrade(r.options.cat), bps);
+        director = new autobuild.bootstrap.app.Director(r.steps, r.stage, site, new autobuild.bootstrap.app.Director.Events(){
+            @Override public void started(autobuild.bootstrap.domain.staging.Step step, boolean plain, double time){
+                Log.info("[abstage] @s start @@ (core @)", (int)time, step, plain ? " (stand-ins)" : "", coreText());
+            }
+
+            @Override public void finished(autobuild.bootstrap.domain.staging.Step step, double time){
+                Log.info("[abstage] @s done  @", (int)time, step);
+            }
+
+            @Override public void blocked(autobuild.bootstrap.domain.staging.Step step, Placement at){
+                Log.err("[abstage] blocked @ at @ (@)", step, at, world.tile(at.x, at.y) == null ? "off the map" : world.tile(at.x, at.y).block().name);
+            }
+
+            @Override public void repaired(autobuild.bootstrap.domain.staging.Step step, int blocks){
+                Log.info("[abstage] repair @: @ blocks", step, blocks);
+            }
+
+            @Override public void done(double time){
+                Log.info("[abstage] @s all steps done (planned ~@s); core @", (int)time, (int)lastPlanned, coreText());
+            }
+        });
+        lastPlanned = r.schedule.time();
+        statusAt = 0;
+        // the game runs `speed` times faster (each update a longer step)
+        if(speed != 1f) Time.setDeltaProvider(() -> Math.min(Core.graphics.getDeltaTime() * 60f, 3f) * speed);
+        if(hooked) return;
+        hooked = true;
+        arc.Events.run(mindustry.game.EventType.Trigger.update, () -> {
+            if(director == null || !state.isGame()) return;
+            float secs = Time.delta / 60f;
+            site.update(secs);
+            director.update(secs);
+            if(director.state.time >= statusAt){
+                statusAt += 60;
+                var st = director.step();
+                Log.info("[abstage] @s @/@ steps, @ @@", (int)director.state.time, director.built(), director.built() + director.left(), director.phase,
+                    st == null ? "" : st, director.missing.isEmpty() ? "" : " waiting for " + director.missing + " " + director.need);
+            }
+        });
+    }
+
+    static double lastPlanned;
+
+    static String coreText(){
+        var core = state.rules.defaultTeam.core();
+        StringBuilder s = new StringBuilder();
+        for(Item i : content.items()) if(core != null && core.items.get(i) > 0) s.append(i.name).append(':').append(core.items.get(i)).append(' ');
+        return s.toString().trim();
+    }
+
     /**
      * The terrain as text for offline runs (test/autobuild/bootstrap/MapRun): top row first, '.'
      * buildable, '#' not, 'C' core, ores c l s k t (other ores '.'), '~' buildable water, 'W' deep.
@@ -244,6 +328,6 @@ public class ServerBootstrapTest{
         Building core = state.rules.defaultTeam.core();
         last.clear();
         for(Item i : content.items()) last.put(i, core.items.get(i));
-        lastTime = Time.millis();
+        lastTime = Time.time;
     }
 }

@@ -5,12 +5,12 @@
 set -e
 BIN="$HOME/jdk17/bin/"
 [ -x "${BIN}javac" ] || BIN="" # else JDK 17 on the PATH
-if grep -rlE "^import (static )?(mindustry|arc)\." src/autobuild/bootstrap/domain; then
-    echo "the bootstrap domain must not import game classes"
+if grep -rlE "^import (static )?(mindustry|arc)\." src/autobuild/bootstrap/domain src/autobuild/bootstrap/app; then
+    echo "the bootstrap domain and use cases must not import game classes"
     exit 1
 fi
 OUT=$(mktemp -d)
-"${BIN}javac" -d "$OUT" src/autobuild/plan/*.java $(find src/autobuild/bootstrap/domain -name '*.java') test/autobuild/*.java test/autobuild/bootstrap/*.java
+"${BIN}javac" -d "$OUT" src/autobuild/plan/*.java $(find src/autobuild/bootstrap/domain src/autobuild/bootstrap/app -name '*.java') test/autobuild/*.java test/autobuild/bootstrap/*.java
 if [ "$1" != bootstrap ]; then
     "${BIN}java" -cp "$OUT" autobuild.DefenseTest
     "${BIN}java" -cp "$OUT" autobuild.PlannerTest

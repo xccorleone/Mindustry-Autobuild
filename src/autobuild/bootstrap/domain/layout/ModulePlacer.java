@@ -12,8 +12,10 @@ import java.util.*;
 /**
  * Where the modules and power plants stand: one instance after the other (modules, then plants),
  * every turn and every position on the map. A position is possible when the footprint is free and
- * on nobody's ring, the ring around it holds nothing planned (and no other module's port lane), and
- * every port's lane (attach tile and the tile straight out) is free and on no other ring or lane.
+ * on nobody's ring, the ring around it holds nothing planned (and no other module's port lane) and
+ * stays {@link #CORE_BAND} tiles off the core (else modules wall the core in and its lines find no
+ * way in; only where there is no room elsewhere it may stand by the core), and every port's lane (attach tile and the tile straight out) is free and on no other ring
+ * or lane.
  * Among those the cheapest wins:
  * <pre>
  *   sum over inlets  (rate x line cost from its source patch / water body to the attach tile)
@@ -26,6 +28,8 @@ import java.util.*;
  */
 public final class ModulePlacer{
     static final double ORE_COST = 3, COMPACT = 2;
+    /** tiles around the core kept off modules and their rings: the lines into the core come through there */
+    static final int CORE_BAND = 3;
 
     final Terrain terrain;
     final Reservation res;
@@ -62,14 +66,23 @@ public final class ModulePlacer{
      * @param lines the plan's lines feeding this instance, by inlet index (null where none)
      */
     public Stamp place(ModuleSpec spec, int m, SupplyLine[] lines){
+        Stamp s = place(spec, m, lines, CORE_BAND);
+        // nowhere else (a cramped map): by the core rather than not at all
+        return s != null ? s : place(spec, m, lines, -1);
+    }
+
+    Stamp place(ModuleSpec spec, int m, SupplyLine[] lines, int coreBand){
         int w = res.w, h = res.h, owner = BasePlan.MODULE + m;
-        // prefix sums: footprint blocked (taken or ring), ring blocked (anything planned, attach tiles), valuable ore
+        int[] core = terrain.core();
+        // prefix sums: footprint blocked (taken or ring), ring blocked (anything planned, attach tiles, the
+        // band around the core), valuable ore
         int[] foot = new int[(w + 1) * (h + 1)], exp = new int[(w + 1) * (h + 1)], ore = new int[(w + 1) * (h + 1)];
         for(int x = 0; x < w; x++) for(int y = 0; y < h; y++){
             String it = terrain.ore(x, y);
             boolean valuable = it != null && !cat.item(it).lowPriority;
+            boolean band = coreBand >= 0 && x >= core[0] - coreBand && x <= core[2] + coreBand && y >= core[1] - coreBand && y <= core[3] + coreBand;
             put(foot, w, x, y, !res.free(x, y) || res.ring(x, y) ? 1 : 0);
-            put(exp, w, x, y, res.ownerAt(x, y) != Reservation.FREE || attach[x + y * w] ? 1 : 0);
+            put(exp, w, x, y, res.ownerAt(x, y) != Reservation.FREE || attach[x + y * w] || band ? 1 : 0);
             put(ore, w, x, y, valuable ? 1 : 0);
         }
         double cx = 0, cy = 0;

@@ -14,11 +14,28 @@ change behaviour or settings).
   queues all of it at once (step-by-step building comes in milestone 3). Built-in modules: Silicon
   Smelter (8), a graphite press, a combustion plant (copper and lead only), the turbine plant
   generator1. Server test `servertest-boot.sh` measures the core's income against the forecast.
+- Bootstrap production, milestone 3: the base is built step by step. The plan is cut into steps
+  (a module with its outlet lines, a power plant, a mining site with its line, pumps, power nodes,
+  upgrades) ordered greedily by payback from the core's stock and income, with a look-ahead so that
+  no step strands the rest. Without titanium or graphite, conveyors and mechanical drills stand in
+  and are upgraded later. When the steps need an item nothing brings in, a line to the core for it
+  (copper, lead, titanium) or a graphite press is added to the plan. "Build" starts a director that
+  hands your unit one step after another as the core can pay, re-queues dropped or destroyed blocks,
+  and stops at a blocked tile (retry or skip); a panel shows the step, what it waits for, pause and
+  cancel. The preview lists the steps with their start times and numbers them on the map.
+  `servertest-boot.sh <map> stage` builds a base step by step on a dedicated server; `selftest.sh
+  <map>:boot` does it in the client.
 ### Changed
+- Bootstrap layout: a later source of a line to the core joins one of its trunks while it stays
+  below 90% of a belt (the core has only so many sides); modules keep 3 tiles off the core unless
+  there is no room elsewhere.
+- `selftest.sh` runs on macOS, also with the Steam copy of the game (Steam need not be running).
 - Module analysis follows the game's instant transfer: a sorter or overflow gate fed by another
   passes nothing on to a third one.
 - `servertest.sh`, `servertest-def.sh` run on macOS too (JDK and `timeout` found or replaced).
 ### Fixed
+- Bootstrap tab: no belt was chosen until you clicked one (the default was read before the game's
+  content was loaded).
 - Bridges the bootstrap tab hands to your unit keep their planned links: the game links the last
   unlinked bridge placed to the next one in range, which could join one line's end to another line.
 
