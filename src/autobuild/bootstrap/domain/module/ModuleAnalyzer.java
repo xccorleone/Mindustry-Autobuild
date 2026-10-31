@@ -84,6 +84,7 @@ public final class ModuleAnalyzer{
     public static ModuleSpec analyze(Blueprint bp, Catalog cat, double defaultCap){
         ModuleAnalyzer a = new ModuleAnalyzer(bp, cat, defaultCap);
         ModuleSpec spec = new ModuleSpec(bp.name, bp.width, bp.height);
+        spec.blueprint = bp;
         try{
             a.run(spec);
         }catch(Failure f){

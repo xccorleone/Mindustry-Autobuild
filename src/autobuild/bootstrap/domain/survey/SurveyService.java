@@ -22,6 +22,8 @@ public final class SurveyService{
         /** reachable only, nearest first */
         public final List<OrePatch> patches;
         public final List<WaterBody> waters;
+        /** per tile (x + y * w): inside the base and off the danger mask; and buildable too */
+        public boolean[] allowed, usable;
 
         Report(PathField field, List<OrePatch> patches, List<WaterBody> waters){
             this.field = field;
@@ -74,7 +76,10 @@ public final class SurveyService{
         }
         patches.sort(Comparator.comparingInt(p -> p.distance));
         waters.sort(Comparator.comparingInt(b -> b.distance));
-        return new Report(field, patches, waters);
+        Report r = new Report(field, patches, waters);
+        r.allowed = allowed;
+        r.usable = usable;
+        return r;
     }
 
     static int[] flood(int start, int w, int h, boolean eight, java.util.function.IntPredicate same, boolean[] seen){
