@@ -1,6 +1,7 @@
 package autobuild.bootstrap;
 
 import autobuild.bootstrap.domain.catalog.Catalog;
+import autobuild.bootstrap.domain.module.*;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -35,5 +36,15 @@ final class Check{
     static Catalog catalog() throws IOException{
         if(catalog == null) catalog = Catalog.parse(Files.readString(Path.of(FIXTURES + "catalog-v160.7.txt")));
         return catalog;
+    }
+
+    /** a committed fixture, or a local one (null when that file isn't there) */
+    static Blueprint blueprint(String path) throws IOException{
+        Path p = Path.of(path);
+        if(!Files.exists(p)){
+            System.out.println("SKIP " + path + " (local fixture missing)");
+            return null;
+        }
+        return BlueprintCodec.decodeBase64(Files.readString(p), catalog());
     }
 }
