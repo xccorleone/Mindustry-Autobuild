@@ -5,6 +5,7 @@ public class BootstrapTest{
     public static void main(String[] args) throws Exception{
         CatalogTest.run();
         BlueprintCodecTest.run();
+        ModuleAnalyzerTest.run();
         System.out.println(Check.fails == 0 ? "BOOTSTRAP OK" : Check.fails + " FAILED");
         if(Check.fails > 0) System.exit(1);
     }
