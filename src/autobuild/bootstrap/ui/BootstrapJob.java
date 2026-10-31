@@ -1,14 +1,20 @@
 package autobuild.bootstrap.ui;
 
+import arc.*;
 import arc.scene.ui.layout.*;
 import arc.struct.*;
 import arc.util.*;
 import autobuild.*;
-import autobuild.bootstrap.app.PlanBaseUseCase;
+import autobuild.bootstrap.app.*;
 import autobuild.bootstrap.domain.catalog.Catalog;
 import autobuild.bootstrap.domain.module.*;
+import autobuild.bootstrap.domain.shared.*;
+import autobuild.bootstrap.domain.staging.*;
 import autobuild.bootstrap.infra.*;
 import mindustry.content.*;
+import mindustry.game.EventType.*;
+import mindustry.gen.*;
+import mindustry.graphics.*;
 import mindustry.type.*;
 import mindustry.ui.*;
 import mindustry.world.*;
@@ -20,15 +26,17 @@ import static mindustry.Vars.*;
 /**
  * Third tab, "Bootstrap": the selected region is the base area. The player picks how many of each
  * module (built-in or their own schematics), a power plant, raw lines to the core and the belt; the
- * whole end-state base is planned at once and previewed, and "Build" queues all of it (building
- * step by step as the core's stock allows comes with the director, M3).
+ * whole end-state base is planned at once, cut into steps ordered from the core's stock, and
+ * previewed with the step numbers. "Build" starts the {@link Director}: it hands the player's unit
+ * one step after another as the core can pay for them ({@link DirectorHud} shows how far it is).
  */
 public class BootstrapJob extends BuildJob{
     /** module name -> count */
     public final ObjectIntMap<String> counts = new ObjectIntMap<>();
     public String power = BuiltinModules.COMBUSTION;
     public final ObjectIntMap<String> raw = new ObjectIntMap<>();
-    public Block belt = Blocks.conveyor;
+    /** null until the content is loaded (the job is made with the mod): then the plain conveyor */
+    public Block belt;
     public boolean avoidEnemies = true;
 
     Catalog catalog;
@@ -37,9 +45,21 @@ public class BootstrapJob extends BuildJob{
     final ObjectMap<String, ModuleSpec> specs = new ObjectMap<>();
     float specCap = -1;
 
+    /** building the confirmed base (null: nothing confirmed, or a new world) */
+    public Director director;
+    GameSite site;
+
     public BootstrapJob(){
         counts.put("Silicon Smelter (8)", 1);
         raw.put("copper", 1);
+        Events.on(WorldLoadEvent.class, e -> {
+            if(director != null) Log.info("[autobuild] bootstrap: a new world, the director stops");
+            director = null;
+        });
+        Events.run(Trigger.update, () -> {
+            if(director != null && state.isGame() && !state.isPaused()) director.update(Time.delta / 60f);
+        });
+        Events.on(ClientLoadEvent.class, e -> DirectorHud.build(this));
     }
 
     @Override
@@ -53,11 +73,12 @@ public class BootstrapJob extends BuildJob{
         boolean any = false;
         for(var e : counts) any |= e.value > 0;
         for(var e : raw) any |= e.value > 0;
-        return any && belt != null;
+        return any;
     }
 
     /** main thread: the catalog, the blueprints (built-in + schematics) and their analysis at the chosen belt */
     void load(){
+        if(belt == null) belt = Blocks.conveyor;
         if(catalog == null) catalog = GamePlans.liveCatalog();
         if(blueprints.isEmpty()){
             Blueprint si = GameBlueprints.builtin(GameBlueprints.SILICON, catalog), turbine = GameBlueprints.builtin(GameBlueprints.TURBINE, catalog);
@@ -160,6 +181,13 @@ public class BootstrapJob extends BuildJob{
         in.belt = belt.name;
         in.available = new HashSet<>();
         for(Block b : content.blocks()) if(available(b)) in.available.add(b.name);
+        // the steps are ordered from what the core holds now
+        mindustry.world.blocks.storage.CoreBlock.CoreBuild core = team.core();
+        if(core != null){
+            for(Item it : content.items()) if(core.items.get(it) > 0) in.stock.put(it.name, core.items.get(it));
+            in.stage.capacity = core.storageCapacity;
+        }
+        in.infinite = state.rules.infiniteResources || state.rules.teams.get(team).infiniteResources;
         // the routes enemies walk and fly, plus what ground units shoot from there
         if(avoidEnemies && state.rules.waves) in.danger = GamePlans.danger(8f, 15f);
         return in;
@@ -187,6 +215,96 @@ public class BootstrapJob extends BuildJob{
         GamePlans.watchBridges(result.plans);
     }
 
+    /** "Build": the director takes over, one step at a time */
+    @Override
+    public boolean commit(PlanResult result){
+        PlanBaseUseCase.Result run = ((Result)result).run;
+        if(director != null) director.cancel();
+        site = GameSite.player(team, StepGraph.defaultDowngrade(catalog));
+        director = new Director(run.steps, run.stage, site, new Director.Events(){
+            @Override public void started(Step step, boolean plain, double time){
+                Log.info("[autobuild] bootstrap @s: step @ started@", (int)time, step, plain ? " (stand-ins)" : "");
+            }
+
+            @Override public void finished(Step step, double time){
+                Log.info("[autobuild] bootstrap @s: step @ done", (int)time, step);
+            }
+
+            @Override public void blocked(Step step, Placement at){
+                Log.info("[autobuild] bootstrap: step @ blocked at @", step, at);
+                ui.showInfoToast(Tr.t("boot.hud.blockedToast", stepName(step)), 4f);
+            }
+
+            @Override public void repaired(Step step, int blocks){
+                Log.info("[autobuild] bootstrap: @ blocks of @ queued again", blocks, step);
+            }
+
+            @Override public void done(double time){
+                Log.info("[autobuild] bootstrap @s: all steps done", (int)time);
+                ui.showInfoToast(Tr.t("boot.hud.doneToast"), 4f);
+            }
+        });
+        director.tick();
+        ui.showInfoToast(Tr.t("boot.started", run.steps.steps.size()), 3f);
+        return true;
+    }
+
+    /** the step numbers on the map, at the middle of each step's blocks */
+    @Override
+    public void drawOverlay(PlanResult shown){
+        if(!(shown instanceof Result r) || !r.ok()) return;
+        int n = 0;
+        for(Step s : order(r.run)){
+            n++;
+            float x = 0, y = 0;
+            for(Placement p : s.placements){ x += p.x; y += p.y; }
+            if(s.placements.isEmpty()) continue;
+            x = x / s.placements.size() * tilesize;
+            y = y / s.placements.size() * tilesize;
+            WorldLabel.drawAt(String.valueOf(n), x, y, Layer.overlayUI + 1f, WorldLabel.flagOutline | WorldLabel.flagBackground, 1.2f, Align.center, Align.center);
+        }
+    }
+
+    /** the steps as they will be built (upgrades left out: they stand where their step does) */
+    static Seq<Step> order(PlanBaseUseCase.Result run){
+        Seq<Step> out = new Seq<>();
+        for(Schedule.Entry e : run.schedule.entries) if(e.step.kind != Step.Kind.UPGRADE && !out.contains(e.step)) out.add(e.step);
+        for(Step s : run.schedule.stuck) if(s.kind != Step.Kind.UPGRADE && !out.contains(s)) out.add(s);
+        return out;
+    }
+
+    /** a step in the player's language */
+    public static String stepName(Step s){
+        return switch(s.kind){
+            case NODES -> Tr.t("boot.step.nodes");
+            case MODULE, PLANT -> s.what;
+            case MINE, WATER -> Tr.t("boot.step.line", label(s.what), s.to == null ? Tr.t("boot.step.core") : s.to);
+            case UPGRADE -> Tr.t("boot.step.upgrade", s.what.contains(" to ") ? upgraded(s) : s.what);
+        };
+    }
+
+    /** an upgrade's name from its step's */
+    static String upgraded(Step u){
+        String[] w = u.what.split(" to ", 2);
+        return Tr.t("boot.step.line", label(w[0]), w[1].equals("the core") ? Tr.t("boot.step.core") : w[1]);
+    }
+
+    /** "120 copper, 40 lead" with icons */
+    public static String cost(Bom b){
+        StringBuilder sb = new StringBuilder();
+        for(String it : b.items()){
+            Item i = content.item(it);
+            if(sb.length() > 0) sb.append(' ');
+            sb.append(b.get(it)).append(i != null ? i.emoji() : it);
+        }
+        return sb.toString();
+    }
+
+    public static String time(double secs){
+        int s = (int)Math.round(secs);
+        return s / 60 + ":" + String.format("%02d", s % 60);
+    }
+
     static String label(String item){
         Item i = content.item(item);
         if(i != null) return i.localizedName;
@@ -208,6 +326,31 @@ public class BootstrapJob extends BuildJob{
             f.toCore.forEach((item, rate) -> sb.append("\n  ").append(label(item)).append(" [accent]").append(Strings.autoFixed(rate.floatValue(), 2)).append("/s[]"));
             sb.append("\n").append(Tr.t("boot.sum.power", Strings.autoFixed((float)f.powerMade, 0), Strings.autoFixed((float)f.powerUse, 0)));
             sb.append("\n").append(Tr.t("boot.sum.blocks", plans.size, run.plan.zones.size(), run.plan.corridors.size()));
+            // the steps: when each starts (from the core's stock and income), what it costs
+            Schedule sc = run.schedule;
+            sb.append("\n").append(Tr.t("boot.sum.steps", order(run).size, time(sc.time())));
+            int shown = 0;
+            boolean plain = false;
+            for(Schedule.Entry e : sc.entries){
+                if(shown++ >= 8){
+                    sb.append("\n  ...");
+                    break;
+                }
+                plain |= e.plain;
+                sb.append("\n  [lightgray]").append(time(e.start)).append("[] ").append(stepName(e.step)).append(e.plain ? "*" : "")
+                    .append(" [lightgray]").append(cost(e.cost)).append("[]");
+            }
+            if(plain) sb.append("\n[lightgray]").append(Tr.t("boot.sum.plain")).append("[]");
+            if(!run.seeds.isEmpty()){
+                StringBuilder seeds = new StringBuilder();
+                for(String it : run.seeds) seeds.append(seeds.length() > 0 ? Tr.t("sep") : "").append(content.item(it) != null ? Tr.t("boot.step.line", label(it), Tr.t("boot.step.core")) : it);
+                sb.append("\n[accent]").append(Tr.t("boot.sum.seeds", seeds)).append("[]");
+            }
+            if(!sc.stuck.isEmpty()){
+                StringBuilder miss = new StringBuilder();
+                for(String it : sc.missing) miss.append(miss.length() > 0 ? Tr.t("sep") : "").append(label(it));
+                sb.append("\n[orange]").append(Tr.t("boot.sum.stuck", sc.stuck.size(), miss)).append("[]");
+            }
             for(var e : run.unusable.entrySet()) sb.append("\n[scarlet]").append(e.getKey()).append(": ").append(e.getValue()).append("[]");
             if(!run.plan.notes.isEmpty()){
                 sb.append("\n[lightgray]").append(Tr.t("boot.sum.notes", run.plan.notes.size()));

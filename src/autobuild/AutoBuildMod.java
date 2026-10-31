@@ -425,6 +425,10 @@ public class AutoBuildMod extends Mod{
     void commit(){
         PlanResult c = current();
         if(c == null) return;
+        if(job.commit(c)){
+            reset();
+            return;
+        }
         if(player.unit() == null || !player.unit().canBuild()){
             ui.showInfoToast(Tr.t("cantBuild"), 3f);
             return;

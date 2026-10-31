@@ -18,6 +18,11 @@ import static mindustry.Vars.*;
  * Automated client check, enabled with -Dautobuild.selftest=&lt;map&gt;[:water]: starts a sandbox game,
  * selects the densest copper window, runs the threaded planner (counting gray-preview frames),
  * commits the plan, lets the player's unit build it, then reports and exits.
+ * <p>
+ * &lt;map&gt;:boot - the bootstrap tab from a nearly empty core (survival, waves off, 300 copper and
+ * 200 lead, the game {@code -Dautobuild.speed} times faster, default 3): plans a base around the
+ * core, previews it, confirms, and lets the director hand the player's unit one step after another
+ * until everything stands; then measures the core's income against the forecast.
  */
 public class ClientSelfTest{
     final AutoBuildMod mod;
@@ -28,7 +33,7 @@ public class ClientSelfTest{
     float timer;
     int planned;
 
-    final boolean water, autoPorts, defense;
+    final boolean water, autoPorts, defense, boot;
     final String mapSpec;
     boolean sawReplay, shotReplay;
     float previewShotAt = -1f, previewShotAt2 = -1f;
@@ -44,6 +49,7 @@ public class ClientSelfTest{
         this.water = spec.contains(":water");
         this.autoPorts = spec.contains(":auto");
         this.defense = spec.contains(":defense");
+        this.boot = spec.contains(":boot");
         Events.on(ClientLoadEvent.class, e -> Time.runTask(30f, this::start));
         Events.run(Trigger.update, this::update);
         // screenshots for checking what the player actually sees
@@ -72,6 +78,10 @@ public class ClientSelfTest{
     void start(){
         Map map = maps.byName(mapName);
         if(map == null){ fail("no map " + mapName); return; }
+        if(boot){
+            startBoot(map);
+            return;
+        }
         Rules rules = map.applyRules(Gamemode.sandbox);
         rules.waves = false;
         rules.buildSpeedMultiplier = 20f;
@@ -84,6 +94,7 @@ public class ClientSelfTest{
     void update(){
         if(phase == 0) return;
         timer += Time.delta / 60f;
+        if(phase >= 20){ updateBoot(); return; }
         if(timer > (phase == 14 ? 600f : 150f)){ fail("timeout in phase " + phase); return; }
         if(phase >= 9){ updateDefense(); return; }
         switch(phase){
@@ -337,6 +348,120 @@ public class ClientSelfTest{
                 }
                 break;
         }
+    }
+
+    // ---------------------------------------------------------------- bootstrap
+
+    autobuild.bootstrap.ui.BootstrapJob.Result bootPlan;
+    float statusAt, measureFrom = -1f;
+    final ObjectIntMap<mindustry.type.Item> measureStart = new ObjectIntMap<>();
+
+    void startBoot(Map map){
+        Rules rules = map.applyRules(Gamemode.survival);
+        rules.waves = false;
+        rules.waveTimer = false;
+        control.playMap(map, rules);
+        float speed = Float.parseFloat(System.getProperty("autobuild.speed", "3"));
+        if(speed != 1f) Time.setDeltaProvider(() -> Math.min(Core.graphics.getDeltaTime() * 60f, 3f) * speed);
+        phase = 20;
+        Log.info("[selftest] bootstrap on @, @x speed", mapName, speed);
+    }
+
+    void updateBoot(){
+        var job = mod.bootstrapJob;
+        switch(phase){
+            case 20 -> { // world and unit up: a nearly empty core, the region around it, plan
+                if(!state.isGame() || player.unit() == null || player.unit().dead || timer < 3f) return;
+                var core = player.team().core();
+                if(core == null){ fail("no core"); return; }
+                core.items.clear();
+                core.items.set(Items.copper, 300);
+                core.items.set(Items.lead, 200);
+                mod.job = job;
+                // the whole map is the base area (as the server test plans it)
+                mod.selectRegion(0, 0, world.width() - 1, world.height() - 1);
+                Log.info("[selftest] base area (@,@)-(@,@)", job.ax, job.ay, job.bx, job.by);
+                mod.startPicking();
+                phase = 21;
+                timer = 0f;
+            }
+            case 21 -> { // the preview: summary, screenshot, confirm
+                keepAtCore();
+                if(mod.phase == AutoBuildMod.State.preview && mod.current() != null){
+                    if(previewShotAt < 0){
+                        bootPlan = (autobuild.bootstrap.ui.BootstrapJob.Result)mod.current();
+                        Log.info("[selftest] bootstrap plan: @", Strings.stripColors(bootPlan.summary()).replace('\n', '|'));
+                        if(!bootPlan.ok()){ fail("no plan"); return; }
+                        shot = "boot-preview";
+                        previewShotAt = timer;
+                    }
+                    if(timer - previewShotAt < 1f) return;
+                    mod.commit();
+                    if(job.director == null){ fail("no director"); return; }
+                    phase = 22;
+                    timer = 0f;
+                }else if(mod.phase == AutoBuildMod.State.idle && timer > 2f){ fail("bootstrap planning failed: " + job.error); }
+                else if(timer > 300f) fail("bootstrap planning timed out");
+            }
+            case 22 -> { // the director builds: the unit goes where it builds
+                var d = job.director;
+                if(d == null){ fail("the director is gone (state " + state.getState() + ", game over " + state.gameOver + ")"); return; }
+                var u = player.unit();
+                if(u != null && !u.dead){
+                    BuildPlan p = u.buildPlan();
+                    if(p != null) u.set(p.drawx(), p.drawy());
+                    else keepAtCore();
+                }
+                if(timer >= statusAt){
+                    statusAt += 60f;
+                    var st = d.step();
+                    Log.info("[selftest] @s: @/@ steps, @ @@ (core @)", (int)timer, d.built(), d.built() + d.left(), d.phase, st == null ? "" : st,
+                        d.missing.isEmpty() ? "" : " waiting for " + d.missing + " " + d.need, coreText());
+                }
+                if(d.phase == autobuild.bootstrap.app.Director.Phase.BLOCKED){ fail("step blocked at " + d.blockedAt); return; }
+                if(d.phase == autobuild.bootstrap.app.Director.Phase.DONE){
+                    Log.info("[selftest] all steps done at @s (planned ~@s)", (int)timer, (int)bootPlan.run.schedule.time());
+                    shot = "boot-done";
+                    measureFrom = timer;
+                    // a full core takes nothing more: empty what the forecast counts first
+                    var core = player.team().core();
+                    for(var e : bootPlan.run.plan.forecast.toCore.keySet()) core.items.set(content.item(e), 0);
+                    for(var it : content.items()) measureStart.put(it, core.items.get(it));
+                    phase = 23;
+                }else if(timer > 3600f) fail("bootstrap not done in an hour of game time: " + d.phase + " " + d.step() + " missing " + d.missing);
+            }
+            case 23 -> { // income once everything stands, against the forecast
+                keepAtCore();
+                if(timer - measureFrom < 120f) return;
+                var core = player.team().core();
+                float secs = timer - measureFrom;
+                StringBuilder sb = new StringBuilder();
+                boolean ok = true;
+                for(var e : bootPlan.run.plan.forecast.toCore.entrySet()){
+                    var it = content.item(e.getKey());
+                    float rate = (core.items.get(it) - measureStart.get(it, 0)) / secs;
+                    sb.append(' ').append(e.getKey()).append(' ').append(Strings.autoFixed(rate, 2)).append("/s (forecast ").append(Strings.autoFixed(e.getValue().floatValue(), 2)).append(')');
+                    ok &= rate > 0;
+                }
+                Log.info("[selftest] income over @s:@", (int)secs, sb);
+                Log.info(ok ? "[selftest] PASS" : "[selftest] FAIL: something in the forecast doesn't reach the core");
+                phase = 0;
+                Core.app.exit();
+            }
+            default -> {}
+        }
+    }
+
+    void keepAtCore(){
+        var core = player.team().core();
+        if(core != null && player.unit() != null) player.unit().set(core.x, core.y + 3 * tilesize);
+    }
+
+    static String coreText(){
+        var core = player.team().core();
+        StringBuilder s = new StringBuilder();
+        if(core != null) for(var i : content.items()) if(core.items.get(i) > 0) s.append(i.name).append(':').append(core.items.get(i)).append(' ');
+        return s.toString().trim();
     }
 
     Seq<BuildPlan> builtPlans;

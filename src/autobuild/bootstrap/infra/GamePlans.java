@@ -8,6 +8,7 @@ import autobuild.bootstrap.domain.shared.Placement;
 import autobuild.bootstrap.domain.survey.DangerMask;
 import autobuild.plan.EnemyRoutes;
 import mindustry.entities.units.*;
+import mindustry.game.*;
 import mindustry.world.*;
 import mindustry.world.blocks.distribution.*;
 
@@ -40,6 +41,18 @@ public final class GamePlans{
             if(e.breaking || e.tile == null || !watched.remove(e.tile.pos())) return;
             forgetLastBridge(e.tile.block());
         });
+    }
+
+    /** places a plan at once, as a finished construction would (server tests) */
+    public static void placeNow(BuildPlan bp, Team team){
+        Tile t = world.tile(bp.x, bp.y);
+        t.setBlock(bp.block, team, bp.rotation);
+        // same sequence as ConstructBlock.constructFinish for a player-built plan
+        if(t.build != null){
+            t.build.placed();
+            if(bp.config != null) t.build.configured(null, bp.config);
+            t.build.playerPlaced(bp.config);
+        }
     }
 
     /** the catalog from the loaded content (any thread once content is loaded) */
