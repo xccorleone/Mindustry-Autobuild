@@ -19,8 +19,11 @@ import java.util.*;
  *     core's, biggest first: nearest ore patches (water bodies) with capacity left; a patch gives
  *     tiles x coverage x the best allowed drill's rate, a water body tiles x pump rate. Lines left
  *     short are marked limiting.</li>
- * <li>A module short on one input runs slower, so its other lines need less: the targets are scaled to
- *     its slowest line and everything is allocated again.</li>
+ * <li>A module runs at its scarcest line's share of what that inlet takes - short of ore, or held to
+ *     one belt - so its other lines need less: their targets are scaled to it and everything is
+ *     allocated again (once: ore this frees is not offered back to other short modules). The line
+ *     setting a module's speed, if ore is what it lacks, is marked limiting; so is any short core line.</li>
+ * <li>Plants deliver power in proportion to the fuel and water they get.</li>
  * </ol>
  */
 public final class ChainSolver{
@@ -41,35 +44,40 @@ public final class ChainSolver{
             }else{
                 int n = (int)Math.ceil(plan.powerDemand / goal.power.powerGen - 1e-9);
                 for(int i = 0; i < n; i++) plan.instances.add(new Instance(goal.power, true));
-                plan.powerSupply = n * goal.power.powerGen;
             }
         }
         for(int m = 0; m < plan.instances.size(); m++){
             ModuleSpec spec = plan.instances.get(m).spec;
             for(int i = 0; i < spec.inlets.size(); i++){
                 Port in = spec.inlets.get(i);
-                double target = in.liquid ? in.rate : Math.min(in.rate, goal.belt);
+                double wanted = in.liquid ? in.rate : Math.min(in.rate, goal.belt);
                 if(!in.liquid && in.rate > goal.belt + 1e-6) plan.beltLimited.add(new double[]{m, i, in.rate});
-                plan.lines.add(new SupplyLine(in.item(), in.liquid, m, i, target));
+                plan.lines.add(new SupplyLine(in.item(), in.liquid, m, i, in.rate, wanted));
             }
         }
         goal.raw.forEach((item, n) -> {
-            for(int i = 0; i < n; i++) plan.lines.add(new SupplyLine(item, false, -1, -1, goal.belt));
+            for(int i = 0; i < n; i++) plan.lines.add(new SupplyLine(item, false, -1, -1, goal.belt, goal.belt));
         });
 
         allocate(plan, goal, survey, cat);
-        for(SupplyLine l : plan.lines) l.limiting = l.supplied < l.target - 1e-6;
+        for(SupplyLine l : plan.lines) if(l.toCore()) l.limiting = l.supplied < l.wanted - 1e-6;
         boolean scaled = false;
         for(int m = 0; m < plan.instances.size(); m++){
             double k = 1;
-            for(SupplyLine l : plan.lines) if(l.instance == m && l.target > 0) k = Math.min(k, l.supplied / l.target);
+            for(SupplyLine l : plan.lines) if(l.instance == m && l.demand > 0) k = Math.min(k, l.supplied / l.demand);
             plan.instances.get(m).factor = k;
-            if(k < 1 - 1e-6){
-                scaled = true;
-                for(SupplyLine l : plan.lines) if(l.instance == m) l.target *= k;
+            for(SupplyLine l : plan.lines){
+                if(l.instance != m) continue;
+                l.limiting = l.supplied < l.wanted - 1e-6 && l.supplied / l.demand <= k + 1e-9;
+                if(k < 1 - 1e-6 && l.target > l.demand * k + 1e-9){
+                    l.target = l.demand * k;
+                    scaled = true;
+                }
             }
         }
         if(scaled) allocate(plan, goal, survey, cat);
+        for(Instance in : plan.instances) if(in.power) plan.powerSupply += in.spec.powerGen * in.factor;
+        plan.powerShort = plan.powerSupply < plan.powerDemand - 1e-6;
         return plan;
     }
 

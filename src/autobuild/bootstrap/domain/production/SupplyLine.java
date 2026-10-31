@@ -23,18 +23,21 @@ public final class SupplyLine{
     public final boolean liquid;
     /** index into {@link ProductionPlan#instances} and inlet index, or -1, -1 for the core */
     public final int instance, inlet;
+    /** per second: what the inlet takes at its module's full speed (may exceed one belt) */
+    public final double demand;
     /** per second: asked for (one belt at most), aimed at after its module slowed down, found */
     public double wanted, target, supplied;
-    /** too little ore / water for this line: it is what slows its module down (or the core gets less) */
+    /** too little ore / water for this line, and it is what slows its module down most (or the core gets less) */
     public boolean limiting;
     public final List<Share> sources = new ArrayList<>();
 
-    SupplyLine(String item, boolean liquid, int instance, int inlet, double target){
+    SupplyLine(String item, boolean liquid, int instance, int inlet, double demand, double wanted){
         this.item = item;
         this.liquid = liquid;
         this.instance = instance;
         this.inlet = inlet;
-        this.wanted = this.target = target;
+        this.demand = demand;
+        this.wanted = this.target = wanted;
     }
 
     public boolean toCore(){ return instance < 0; }

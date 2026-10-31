@@ -8,14 +8,17 @@ import static autobuild.bootstrap.Check.*;
 
 final class ChainSolverTest{
     /** 40 x 20: sand x0..9 (200 tiles), coal x30..34 y0..9 (50), copper x30..39 y12..19 (80), water x36..39 y0..9 (40) */
-    static GridTerrain map(){
+    static GridTerrain map(){ return map(10, 10); }
+
+    /** the same with sand in the first `sandCols` columns and coal below row `coalTop` */
+    static GridTerrain map(int sandCols, int coalTop){
         String[] rows = new String[20];
         for(int y = 0; y < 20; y++){
             StringBuilder s = new StringBuilder();
             for(int x = 0; x < 40; x++){
                 char c = '.';
-                if(x < 10) c = 's';
-                else if(x >= 30 && x <= 34 && y < 10) c = 'k';
+                if(x < sandCols) c = 's';
+                else if(x >= 30 && x <= 34 && y < coalTop) c = 'k';
                 else if(x >= 30 && y >= 12) c = 'c';
                 else if(x >= 36 && y < 10) c = '~';
                 else if((x == 20 || x == 21) && (y == 10 || y == 11)) c = 'C';
@@ -71,7 +74,34 @@ final class ChainSolverTest{
         noPlant.power = null;
         ProductionPlan np = ChainSolver.solve(noPlant, survey, catalog());
         yes("no power plant", np.noPower);
+        yes("no plant, power short", np.powerShort);
         eq("only silicon", 1, np.instances.size());
+
+        // plenty of coal (60 tiles: 5.76/s) but basic belts: each 10/s inlet gets 5, so silicon runs at half speed
+        SurveyService.Report rich = SurveyService.survey(map(10, 12), new SurveyService.Options());
+        ProductionGoal belts = goal(5);
+        belts.power = null;
+        belts.raw.clear();
+        ProductionPlan b = ChainSolver.solve(belts, rich, catalog());
+        near("belts halve the module", 0.5, b.instances.get(0).factor);
+        eq("belts are no ore shortfall", 0, b.shortfalls().size());
+
+        // little sand: the first sand line gets all 40 tiles' 4.8/s, the second none - only that one sets the speed
+        SurveyService.Report sandy = SurveyService.survey(map(2, 12), new SurveyService.Options());
+        ProductionGoal fewSand = goal(10);
+        fewSand.power = null;
+        fewSand.raw.clear();
+        ProductionPlan s = ChainSolver.solve(fewSand, sandy, catalog());
+        eq("one bottleneck", 1, s.shortfalls().size());
+        yes("the empty sand line limits", line(s, 0, 2).limiting);
+        yes("the short sand line doesn't", !line(s, 0, 1).limiting);
+        yes("the short coal line doesn't", !line(s, 0, 0).limiting);
+
+        // no coal at all: the plant burns nothing and makes no power
+        ProductionPlan dark = ChainSolver.solve(goal(10), SurveyService.survey(map(10, 0), new SurveyService.Options()), catalog());
+        near("starved plant", 0, dark.powerSupply);
+        yes("power short", dark.powerShort);
+        yes("plant fuel limits", line(dark, 1, 1).limiting);
     }
 
     static SupplyLine line(ProductionPlan p, int instance, int inlet){
