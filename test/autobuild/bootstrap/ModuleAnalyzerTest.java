@@ -16,6 +16,7 @@ final class ModuleAnalyzerTest{
         generator();
         local();
         errors();
+        rules();
     }
 
     static String ports(List<Port> ps){
@@ -91,5 +92,44 @@ final class ModuleAnalyzerTest{
         Blueprint pass = new Blueprint("x", 3, 1, List.of(
             new Blueprint.Tile("conveyor", 0, 0, 0, null), new Blueprint.Tile("conveyor", 1, 0, 0, null), new Blueprint.Tile("conveyor", 2, 0, 0, null)));
         yes("pass-through belt", ModuleAnalyzer.analyze(pass, catalog(), CAP).error.contains("feeds no crafter"));
+    }
+
+    static Blueprint.Tile tile(String block, int x, int y, int rot, Object config){ return new Blueprint.Tile(block, x, y, rot, config); }
+
+    /** push rules the fixtures don't exercise, each checked against the game's v160.7 source */
+    static void rules() throws Exception{
+        // an end bridge (no link) takes items only over a link, not from the belt beside it
+        Blueprint endBridge = new Blueprint("x", 3, 1, List.of(
+            tile("conveyor", 0, 0, 0, null), tile("bridge-conveyor", 1, 0, 0, null), tile("combustion-generator", 2, 0, 0, null)));
+        yes("end bridge refuses a belt", String.valueOf(ModuleAnalyzer.analyze(endBridge, catalog(), CAP).error).contains("feeds no crafter"));
+
+        // a bridge in the middle of a chain on the edge is fed by the chain, not an inlet
+        Blueprint chain = new Blueprint("x", 5, 2, List.of(
+            tile("bridge-conveyor", 0, 1, 0, new int[]{2, 0}), tile("bridge-conveyor", 2, 1, 0, new int[]{2, 0}),
+            tile("bridge-conveyor", 4, 1, 0, null), tile("combustion-generator", 4, 0, 0, null)));
+        ModuleSpec c = ModuleAnalyzer.analyze(chain, catalog(), CAP);
+        eq("bridge chain ok", null, c.error);
+        eq("only the chain's first bridge is an inlet", "coal@0,2>3", ports(c.inlets));
+
+        // a 2x2 distributor pushes from its whole footprint
+        Blueprint dist = new Blueprint("x", 4, 3, List.of(
+            tile("conveyor", 0, 0, 0, null), tile("distributor", 1, 0, 0, null),
+            tile("combustion-generator", 3, 1, 0, null), tile("combustion-generator", 1, 2, 0, null)));
+        ModuleSpec d = ModuleAnalyzer.analyze(dist, catalog(), CAP);
+        eq("distributor ok", null, d.error);
+        eq("distributor feeds both generators", "2/2", d.working + "/" + d.consumers);
+
+        // every outlet is limited by its own belt: press A reaches void 1 only, press B both voids,
+        // so void 1 carries 0.67 + 0.33 = 1/s - over a 0.8/s cap although both together could take 1.6
+        Blueprint outs = new Blueprint("x", 5, 4, List.of(
+            tile("conveyor", 2, 0, 1, null), tile("router", 2, 1, 0, null),
+            tile("graphite-press", 0, 1, 0, null), tile("graphite-press", 3, 1, 0, null),
+            tile("item-void", 2, 2, 0, null), tile("item-void", 4, 3, 0, null)));
+        ModuleSpec o = ModuleAnalyzer.analyze(outs, catalog(), 0.8);
+        eq("two outlets ok", null, o.error);
+        near("busiest outlet sets the speed", 0.8, o.factor);
+        near("graphite", 2 * 60 / 90.0 * 0.8, o.outputs.get("graphite"));
+        near("void 1 full", 0.8, o.outlets.get(0).rate);
+        near("void 2", 60 / 90.0 / 2 * 0.8, o.outlets.get(1).rate);
     }
 }

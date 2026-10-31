@@ -13,18 +13,21 @@ import static autobuild.bootstrap.domain.shared.Dir.*;
  * <ol>
  * <li><b>Ports</b>: on the blueprint's edge, a conveyor (conduit) whose back faces outside is an inlet
  *     and one whose front faces outside an outlet; a linked item (liquid) bridge with a free outside
- *     side and nothing next to it but along its link is an inlet. Sandbox markers are ports too and say what they carry: an item / liquid
+ *     side, no bridge linking into it and nothing next to it but along its link is an inlet. Sandbox markers are ports too and say what they carry: an item / liquid
  *     source is an inlet, an item void an outlet; markers are not built.</li>
  * <li><b>Flow</b>: an item put into a port moves through the blueprint by the game's push rules -
  *     conveyors push forward and refuse items from their front, junctions pass straight, sorters pass
  *     their item forward and others to the sides (inverted: the reverse), gates and routers spread,
- *     a linked bridge sends to its link and refuses items from the link side, an end bridge dumps to
- *     every side but its incoming bridges - until a crafter or generator consumes it or it leaves.</li>
+ *     a linked bridge sends to its link and refuses items from the link side, an end bridge takes
+ *     items only over a link and dumps to every side but its incoming bridges; routers, crafters and
+ *     source markers push from their whole footprint - until a crafter or generator consumes the item
+ *     or it leaves.</li>
  * <li><b>Items</b>: an edge inlet's item is not written anywhere, so every assignment of candidate
  *     items (what the module's crafters eat, {@link #FUEL} for generators) is tried; the one letting
  *     the module run fastest wins, then the one leaking least into outlets; a tie is an error.</li>
- * <li><b>Rates</b>: inlets carry at most their belt's speed (bridges and markers: the given default);
- *     the module runs at the share of its crafters' capacity that the inlets and outlets allow.</li>
+ * <li><b>Rates</b>: inlets and outlets carry at most their belt's speed (bridges and markers: the given
+ *     default); the module runs at the share of its crafters' capacity that the inlets and every
+ *     outlet allow, a product splitting evenly over the outlets it reaches.</li>
  * </ol>
  */
 public final class ModuleAnalyzer{
@@ -150,7 +153,7 @@ public final class ModuleAnalyzer{
                     else if(!in(x + DX[r], y + DY[r])) outlets.add(new Port(x + DX[r], y + DY[r], r, liquid, false, cap));
                 }
                 case "bridge", "liquidbridge" -> {
-                    if(p.link < 0 || fedInside(p)) break;
+                    if(p.link < 0 || p.incoming != 0 || fedInside(p)) break;
                     boolean liquid = p.kind().equals("liquidbridge");
                     for(int s = 0; s < 4; s++){
                         if(s == p.linkDir || in(x + DX[s], y + DY[s])) continue;
@@ -210,8 +213,8 @@ public final class ModuleAnalyzer{
         switch(q.kind()){
             case "conveyor": return !liquid && travel != opposite(r);
             case "conduit": return liquid && travel != opposite(r);
-            case "bridge": return !liquid && (viaBridge || q.link < 0 || travel != opposite(q.linkDir));
-            case "liquidbridge": return liquid && (viaBridge || q.link < 0 || travel != opposite(q.linkDir));
+            case "bridge": return !liquid && (viaBridge || (q.link >= 0 && travel != opposite(q.linkDir)));
+            case "liquidbridge": return liquid && (viaBridge || (q.link >= 0 && travel != opposite(q.linkDir)));
             case "sorter", "gate", "junction", "router": return !liquid;
             case "liquidrouter": return liquid;
             case "itemvoid": return !liquid;
@@ -223,7 +226,8 @@ public final class ModuleAnalyzer{
         Reach reach = new Reach();
         Deque<int[]> queue = new ArrayDeque<>();
         boolean[] seen = new boolean[parts.size() * 8];
-        push(port.x, port.y, port.x + DX[port.dir], port.y + DY[port.dir], port.dir, item, port.liquid, false, reach, queue, seen);
+        if(port.marker) pushAround(parts.get(grid[port.x][port.y]), item, port.liquid, reach, queue, seen); // sources feed every side
+        else push(port.x, port.y, port.x + DX[port.dir], port.y + DY[port.dir], port.dir, item, port.liquid, false, reach, queue, seen);
         drain(item, port.liquid, reach, queue, seen);
         return reach;
     }
@@ -232,16 +236,21 @@ public final class ModuleAnalyzer{
         Reach reach = new Reach();
         Deque<int[]> queue = new ArrayDeque<>();
         boolean[] seen = new boolean[parts.size() * 8];
-        for(int x = c.x0; x <= c.x1; x++){
-            push(x, c.y1, x, c.y1 + 1, 1, item, false, false, reach, queue, seen);
-            push(x, c.y0, x, c.y0 - 1, 3, item, false, false, reach, queue, seen);
-        }
-        for(int y = c.y0; y <= c.y1; y++){
-            push(c.x1, y, c.x1 + 1, y, 0, item, false, false, reach, queue, seen);
-            push(c.x0, y, c.x0 - 1, y, 2, item, false, false, reach, queue, seen);
-        }
+        pushAround(c, item, false, reach, queue, seen);
         drain(item, false, reach, queue, seen);
         return reach;
+    }
+
+    /** a block pushing into every tile around its footprint (crafter output, router, source marker) */
+    void pushAround(Part p, String item, boolean liquid, Reach reach, Deque<int[]> queue, boolean[] seen){
+        for(int x = p.x0; x <= p.x1; x++){
+            push(x, p.y1, x, p.y1 + 1, 1, item, liquid, false, reach, queue, seen);
+            push(x, p.y0, x, p.y0 - 1, 3, item, liquid, false, reach, queue, seen);
+        }
+        for(int y = p.y0; y <= p.y1; y++){
+            push(p.x1, y, p.x1 + 1, y, 0, item, liquid, false, reach, queue, seen);
+            push(p.x0, y, p.x0 - 1, y, 2, item, liquid, false, reach, queue, seen);
+        }
     }
 
     void push(int fx, int fy, int tx, int ty, int travel, String item, boolean liquid, boolean viaBridge,
@@ -296,9 +305,7 @@ public final class ModuleAnalyzer{
                 case "gate" -> {
                     for(int e : new int[]{d, (d + 1) & 3, (d + 3) & 3}) push(x, y, x + DX[e], y + DY[e], e, item, liquid, false, reach, queue, seen);
                 }
-                case "router", "liquidrouter" -> {
-                    for(int e = 0; e < 4; e++) push(x, y, x + DX[e], y + DY[e], e, item, liquid, false, reach, queue, seen);
-                }
+                case "router", "liquidrouter" -> pushAround(p, item, liquid, reach, queue, seen);
                 case "bridge", "liquidbridge" -> {
                     if(p.link >= 0){
                         Part q = parts.get(p.link);
@@ -343,8 +350,10 @@ public final class ModuleAnalyzer{
             reach.add(byItem);
         }
         long combos = 1;
-        for(List<String> v : valid) combos *= v.size();
-        if(combos > MAX_ASSIGNMENTS) throw new Failure("too many ways to feed the inlets");
+        for(List<String> v : valid){
+            combos *= v.size();
+            if(combos > MAX_ASSIGNMENTS) throw new Failure("too many ways to feed the inlets");
+        }
 
         String[] cur = new String[n], best = null;
         double bestScore = -1;
@@ -382,26 +391,27 @@ public final class ModuleAnalyzer{
         Map<String, double[]> demand = new TreeMap<>();
         double f = factor(best, reach, demand);
 
-        double totalOut = 0;
+        // each crafter's product splits evenly over the outlets it reaches; no outlet may carry more than its belt
+        double[] load = new double[outlets.size()];
         for(int ci = alive.nextSetBit(0); ci >= 0; ci = alive.nextSetBit(ci + 1)){
             Part c = parts.get(ci);
             if(!c.kind().equals("crafter")) continue;
             for(String product : c.b.out.items()){
                 Reach r = flowFromCrafter(c, product);
                 if(r.outlets.isEmpty()) throw new Failure(product + " from (" + c.t.x + "," + c.t.y + ") reaches no outlet");
-                for(int o = r.outlets.nextSetBit(0); o >= 0; o = r.outlets.nextSetBit(o + 1)) outlets.get(o).items.add(product);
                 double rate = c.b.out.get(product) * 60.0 / c.b.craft;
+                for(int o = r.outlets.nextSetBit(0); o >= 0; o = r.outlets.nextSetBit(o + 1)){
+                    outlets.get(o).items.add(product);
+                    load[o] += rate / r.outlets.cardinality();
+                }
                 spec.outputs.merge(product, rate, Double::sum);
-                totalOut += rate;
             }
         }
-        double outCap = 0;
-        for(Port o : outlets) if(!o.items.isEmpty()) outCap += o.cap;
-        if(totalOut * f > outCap) f = outCap / totalOut;
+        for(int o = 0; o < outlets.size(); o++) if(load[o] * f > outlets.get(o).cap) f = outlets.get(o).cap / load[o];
 
         double ff = f;
         spec.outputs.replaceAll((k, v) -> v * ff);
-        for(Port o : outlets) if(!o.items.isEmpty()) o.rate = totalOut * f * o.cap / outCap;
+        for(int o = 0; o < outlets.size(); o++) outlets.get(o).rate = load[o] * f;
         for(int i = 0; i < n; i++){
             double[] ds = demand.get(best[i]);
             Port in = inlets.get(i);
