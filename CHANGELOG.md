@@ -7,6 +7,12 @@ change behaviour or settings).
 
 ## [Unreleased]
 ### Added
+- Safe drones: poly and mega under the rebuild and repair commands work only from places that
+  enemy anti-air turrets and armed enemy units can't hit (their range plus a margin, and for a few
+  seconds where the drone got hurt). Where it can be shot, the drone pauses and moves to a safe spot
+  still within reach of the job. With no such spot it gives the job up for 10 seconds and flees.
+  On by default, off under Settings → Game. `servertest-drones.sh <map> [off] [inside]` checks it
+  on a dedicated server.
 - Bootstrap production (in development), milestone 1: game data catalog, schematic decoding and module analysis, survey, balancing. Offline tests only; nothing in the game uses it yet.
 - Bootstrap production, milestone 2: the whole end-state base laid out on the map - modules and
   power plants (turned to fit), mining sites, lines, pump sites, power nodes - with a forecast of

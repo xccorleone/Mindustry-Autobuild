@@ -25,6 +25,7 @@ The interface is in English and Simplified Chinese and follows the game's langua
 - [Features](#features)
   - [Drill fields](#drill-fields-main-feature)
   - [Defenses (experimental)](#defenses-experimental)
+  - [Safe drones](#safe-drones)
   - [Interface](#interface)
 - [Core algorithms](#core-algorithms)
 - [How it is tested](#how-it-is-tested)
@@ -116,6 +117,21 @@ The interface is in English and Simplified Chinese and follows the game's langua
 
 <p align="center"><img src="docs/media/defense.gif" width="560" alt="Defense along a diagonal enemy route"></p>
 <p align="center"><sub>Defense beside a diagonal route (red): walls, menders, rows of hails and lancers, ammo and water lanes, power.</sub></p>
+
+### Safe drones
+
+**Poly** and **mega**, under the **rebuild** and **repair** commands, keep out of enemy fire while
+they work:
+- **Danger**: the range of every enemy turret that targets air and of every armed enemy unit that
+  targets air, plus a margin. A place where the drone just got hurt also counts, for a few seconds.
+- **Where it can be shot**, the drone pauses. It moves to a safe spot that is still within build or
+  heal range of the same job, then carries on.
+- **If there is no such spot**, it gives the job up for 10 seconds and flees: to the core if the
+  way there is safe, else to the nearest safe place. Meanwhile it repairs or rebuilds something
+  else.
+- The assist command, the hold-position stance and every other unit keep the game's behaviour.
+- It is on by default; turn it off under *Settings → Game*. It runs wherever the game is simulated:
+  singleplayer, or when you host.
 
 ### Interface
 
@@ -226,6 +242,7 @@ other ore covered, minus overload.
   | Maze map, ~250-tile line through two corridors | 0.37 items/s | 0.36 |
   | Defense: enemy route after building (2 spawns) | 270/270, 266/266 tiles identical | — |
   | Defense on Fork, 6 waves | 0 enemies reached the core (16 without it) | — |
+  | Safe drones next to a scatter (`servertest-drones.sh`) | never in range, 0 damage; jobs at the range's edge done, deep ones left | vanilla: 13.5 tiles inside, 202 damage (437 when starting inside) |
 
 - **Client self-test** (`./selftest.sh <map>[:defense]`): the real UI flow end to end.
   - It covers port picking, the gray replay, the preview, Another plan, and building.
